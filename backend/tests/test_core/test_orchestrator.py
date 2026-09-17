@@ -26,9 +26,14 @@ def settings():
     """Cross-critique is disabled here: these tests exercise orchestration
     mechanics (parallelism, degradation, synthesis fallback, routing) which
     predate the critique round and are tested in isolation from it. See
-    `settings_with_critique` for the critique-specific tests below."""
+    `settings_with_critique` for the critique-specific tests below.
+
+    `provider_priority` is pinned explicitly (rather than relying on the
+    app-wide default) so these mechanics tests stay deterministic regardless
+    of which providers `config.py` prioritizes by default."""
     return Settings(
         synthesizer_provider="openai",
+        provider_priority="openai,gemini,anthropic",
         max_tokens_per_request=100,
         provider_timeout_seconds=1,
         enable_cross_critique=False,

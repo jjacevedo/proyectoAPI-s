@@ -34,7 +34,7 @@ export default function Home() {
   return (
     <main>
       <h1>proyectoAPI-s</h1>
-      <p className="subtitle">Orquestación MVP de OpenAI + Claude + Gemini</p>
+      <p className="subtitle">Orquestación MVP de Cerebras + Gemini + Groq (gratis) + OpenAI</p>
       <ChatForm prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit} loading={loading} />
       {error && <div className="card error">{error}</div>}
       {response && (

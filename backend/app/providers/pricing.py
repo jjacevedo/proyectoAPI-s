@@ -21,6 +21,12 @@ PRICING: dict[str, ModelPricing] = {
     "gemini-3.6-flash": ModelPricing(0.75, 3.75),
     "gemini-3.5-flash": ModelPricing(1.50, 9.00),
     "gemini-3.5-flash-lite": ModelPricing(0.30, 2.50),
+
+    # Defaults gratuitos (Groq/Cerebras/Google AI Studio free tier). $0/$0 para
+    # que la UI muestre un costo real de $0 en vez de "N/D" con estos modelos.
+    "gemini-3.1-flash-lite": ModelPricing(0.0, 0.0),
+    "llama-3.3-70b-versatile": ModelPricing(0.0, 0.0),
+    "gpt-oss-120b": ModelPricing(0.0, 0.0),
 }
 
 

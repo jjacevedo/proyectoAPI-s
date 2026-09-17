@@ -28,16 +28,19 @@
                        | TaskRouter |
                        +-----+------+
                               |
-                (clasifica y elige 1, 2 o 3 providers)
+                (clasifica y elige 1, 2 o 3 providers,
+                 priorizando los gratuitos via provider_priority)
                               |
                 +-------------+-------------+
                 |             |             |
                 v             v             v
           +----------+  +----------+  +----------+
-          |  OpenAI  |  | Anthropic|  |  Gemini  |
+          | Cerebras |  |  Gemini  |  |   Groq   |
           +-----+----+  +----+-----+  +----+-----+
                 |             |             |
                 +-------------+-------------+
+                (OpenAI disponible como respaldo de pago;
+                 Anthropic disponible pero inactivo por defecto)
                               |
                               v
                        +------------+
@@ -86,15 +89,23 @@
                      | critique()     |
                      +-------+--------+
                              |
-          +------------------+------------------+
-          |                  |                  |
-          v                  v                  v
- +----------------+ +----------------+ +----------------+
- | OpenAIProvider | |AnthropicProvider| | GeminiProvider |
- +----------------+ +----------------+ +----------------+
+      +--------------+--------------+--------------+
+      |              |              |               |
+      v              v              v               v
++------------+ +------------+ +----------------+ +-------------------------+
+|OpenAIProvider| |AnthropicProvider| | GeminiProvider | | OpenAICompatibleProvider|
++------------+ +------------+ +----------------+ +-----------+-------------+
+ (activo,       (inactivo por                          |
+  de pago)       defecto, de pago)          +-----------+-----------+
+                                              |                       |
+                                              v                       v
+                                       +-------------+       +-----------------+
+                                       | GroqProvider|       | CerebrasProvider|
+                                       +-------------+       +-----------------+
+                                        (gratis)               (gratis)
 ```
 
-El orquestador depende exclusivamente de `LLMProvider`. Cada adaptador traduce el contrato común al SDK oficial de su proveedor. Esto evita que el router futuro o el sintetizador tengan lógica específica de OpenAI, Anthropic o Gemini.
+El orquestador depende exclusivamente de `LLMProvider`. Cada adaptador traduce el contrato común al SDK oficial de su proveedor. `GroqProvider` y `CerebrasProvider` comparten una única implementación (`OpenAICompatibleProvider`, en `backend/app/providers/openai_compatible_provider.py`) porque ambos exponen un endpoint `/chat/completions` compatible con la API de OpenAI — solo difieren en `base_url` y `provider_name`. Esto evita que el router o el sintetizador tengan lógica específica de ningún proveedor concreto.
 
 ## Degradación elegante
 
@@ -102,7 +113,7 @@ Cada llamada captura errores del SDK y produce un `LLMResponse` con `error`. `as
 
 ## Router inteligente (v2)
 
-`TaskRouter.classify()` clasifica el prompt en `low`/`medium`/`high` usando heurísticas simples (palabras clave y longitud, ver `backend/app/core/router.py`) y decide cuántos providers usar (1/2/3). `select_providers()` elige el subconjunto según `settings.provider_priority` (por defecto el orden de menor a mayor costo por token). El orquestador llama al router en cada `run()`, así que el mismo `DeliberationOrchestrator` sirve tanto para un prompt trivial (1 provider) como para uno complejo (3 providers + síntesis), sin que el endpoint tenga que decidir nada. La decisión de enrutamiento (`complexity`, `routing_reason`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia.
+`TaskRouter.classify()` clasifica el prompt en `low`/`medium`/`high` usando heurísticas simples (palabras clave y longitud, ver `backend/app/core/router.py`) y decide cuántos providers usar (1/2/3). `select_providers()` elige el subconjunto según `settings.provider_priority` (por defecto `cerebras,gemini,groq,openai`: los 3 proveedores gratuitos primero, OpenAI de pago como respaldo solo si el router necesita más providers de los que hay gratis disponibles o si a alguno le falta su API key). El orquestador llama al router en cada `run()`, así que el mismo `DeliberationOrchestrator` sirve tanto para un prompt trivial (1 provider) como para uno complejo (3 providers + síntesis), sin que el endpoint tenga que decidir nada. La decisión de enrutamiento (`complexity`, `routing_reason`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia.
 
 Esto es deliberadamente una heurística, no un clasificador con IA: mantiene el costo de clasificar cerca de cero y es suficiente para el objetivo del documento de diseño (no gastar 3 modelos en una pregunta simple). Un clasificador más sofisticado (o basado en LLM) puede reemplazar `TaskRouter.classify()` sin tocar el orquestador ni los providers.
 

@@ -12,9 +12,15 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.1-flash-lite"
+    groq_api_key: str | None = None
+    # Verificar en console.groq.com antes de depender de este ID en produccion:
+    # los nombres de modelo de Groq cambian con el tiempo.
+    groq_model: str = "llama-3.3-70b-versatile"
+    cerebras_api_key: str | None = None
+    cerebras_model: str = "gpt-oss-120b"
 
-    synthesizer_provider: str = "openai"
+    synthesizer_provider: str = "cerebras"
     enable_cross_critique: bool = True
     enable_reevaluation_round: bool = True
     enable_code_verification: bool = True
@@ -26,9 +32,13 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     database_url: str = "postgresql+asyncpg://multillm:multillm@postgres:5432/multillm"
 
-    # Orden preferido para el router al elegir un subconjunto de providers
-    # (de menor a mayor costo por millon de tokens segun pricing.py).
-    provider_priority: str = "openai,gemini,anthropic"
+    # Orden preferido para el router al elegir un subconjunto de providers.
+    # cerebras/gemini/groq son gratuitos por defecto; openai queda al final
+    # como respaldo (solo se usa si el router necesita mas providers de los
+    # que hay gratis disponibles, o si a alguno le falta la api key). anthropic
+    # no esta en la lista por defecto (issue #17: se quedo sin credito) pero
+    # sigue disponible si se le agrega una api key y se reintroduce aqui.
+    provider_priority: str = "cerebras,gemini,groq,openai"
 
     @property
     def cors_origin_list(self) -> list[str]:

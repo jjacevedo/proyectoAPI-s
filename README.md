@@ -1,14 +1,17 @@
 # proyectoAPI-s
 
-Sistema Multi-LLM de Deliberación y Síntesis. MVP con FastAPI + Next.js que consulta OpenAI, Anthropic y Gemini en paralelo y sintetiza una respuesta final.
+Sistema Multi-LLM de Deliberación y Síntesis. MVP con FastAPI + Next.js que consulta varios LLMs en paralelo y sintetiza una respuesta final.
+
+Por defecto usa proveedores **gratuitos** (Cerebras, Google AI Studio/Gemini, Groq) para esta fase temprana del proyecto, más OpenAI activo como respaldo (de pago, pero ya verificado funcionando). Anthropic queda disponible pero inactivo por defecto (ver [ROADMAP.md](ROADMAP.md) e issue #17).
 
 ## Arquitectura MVP
 
 ```text
 Usuario -> Next.js -> FastAPI -> Orchestrator
-                                  |-> OpenAI
-                                  |-> Anthropic
-                                  |-> Gemini
+                                  |-> Cerebras (gratis)
+                                  |-> Gemini (gratis)
+                                  |-> Groq (gratis)
+                                  |-> OpenAI (de pago, respaldo)
                                   `-> Synthesizer -> respuesta final
                                            |
                                            `-> PostgreSQL (request_logs)
@@ -19,7 +22,8 @@ El MVP no implementa todavía router inteligente, crítica cruzada ni verificaci
 ## Requisitos
 
 - Docker y Docker Compose
-- API keys de uno o más proveedores: OpenAI, Anthropic y/o Gemini
+- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)), Cerebras ([cloud.cerebras.ai](https://cloud.cerebras.ai)) y/o Google AI Studio (Gemini). Ninguno debería requerir tarjeta de crédito, pero confírmalo en tu propio registro.
+- OpenAI (de pago) y Anthropic (de pago) siguen soportados — agrega su API key en `.env` para reactivarlos.
 
 ## Quickstart
 

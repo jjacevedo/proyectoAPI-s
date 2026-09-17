@@ -6,7 +6,7 @@ Implementada en este scaffold:
 
 - FastAPI async.
 - Abstracción común `LLMProvider`.
-- Providers OpenAI, Anthropic y Gemini.
+- Providers OpenAI, Anthropic y Gemini (implementados originalmente; ver nota abajo sobre el pivote a proveedores gratuitos).
 - Ejecución paralela con `asyncio.gather`.
 - Degradación elegante ante fallos parciales.
 - Synthesizer configurable.
@@ -24,6 +24,10 @@ Implementada en este scaffold:
 - [x] Detección de desacuerdos (`DisagreementDetector`, deriva la señal del contenido de las críticas; alimenta al `Synthesizer` cuando detecta contradicción).
 - [x] Múltiples rondas de deliberación (`Reevaluator`: cada provider revisa su propia respuesta con las críticas antes de sintetizar; 2 rondas de generación, no un bucle abierto).
 - [ ] Rate limiting y controles de presupuesto más avanzados.
+
+## Pivote a proveedores gratuitos
+
+Para evitar depender de créditos de pago durante esta fase temprana (issue #17: Anthropic se quedó sin crédito real en producción), se agregaron **Groq** y **Cerebras** (`backend/app/providers/groq_provider.py`, `cerebras_provider.py`, ambos comparten `OpenAICompatibleProvider`) como proveedores gratuitos elegidos del catálogo [free-llm-api-resources](https://github.com/raullenchai/free-llm-api-resources), y el modelo por defecto de Gemini pasó de uno de pago (`gemini-3.8-flash`) a uno del tier gratuito de Google AI Studio (`gemini-3.1-flash-lite`). `provider_priority` prioriza ahora los 3 gratuitos; OpenAI se mantiene activo como respaldo de pago (ya verificado funcionando) y Anthropic queda disponible pero inactivo por defecto. Ningún proveedor se eliminó — reactivar Anthropic es tan simple como agregarle una API key.
 
 ## Fase 3 — Verificación externa
 

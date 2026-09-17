@@ -1,0 +1,15 @@
+from app.providers.pricing import estimate_cost
+
+
+def test_free_tier_default_models_cost_zero():
+    assert estimate_cost("gpt-oss-120b", 1000, 1000) == 0.0
+    assert estimate_cost("llama-3.3-70b-versatile", 1000, 1000) == 0.0
+    assert estimate_cost("gemini-3.1-flash-lite", 1000, 1000) == 0.0
+
+
+def test_unrecognized_model_returns_none():
+    assert estimate_cost("some-unconfigured-model", 1, 1) is None
+
+
+def test_paid_model_still_priced():
+    assert estimate_cost("gpt-5.6-luna", 1_000_000, 0) == 0.20
