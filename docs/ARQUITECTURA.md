@@ -175,12 +175,20 @@ Endpoint independiente `POST /api/evaluate` (`backend/app/api/routes/evaluate.py
 
 Degradación elegante: si no hay providers configurados, `502`; si el juez falla (rate limit, error de red), la comparación cuantitativa (tokens/costo/latencia) se devuelve igual, solo sin veredicto cualitativo (`judge_error` explica por qué). El frontend expone un checkbox "Modo evaluación" en la página principal (`EvaluationPanel.tsx`) que alterna entre llamar `/api/chat` o `/api/evaluate` con el mismo formulario.
 
+## Dashboard de costos, latencia y calidad (v4, issue #15)
+
+Endpoint de solo lectura `GET /api/dashboard/stats` (`backend/app/api/routes/dashboard.py`) que agrega, sobre los datos ya recolectados en `request_logs` y `evaluation_logs`, las métricas necesarias para responder si la arquitectura multi-LLM aporta beneficios reales frente a su costo — sin introducir ninguna tabla ni columna nueva, es una vista sobre lo que ya existía.
+
+- `backend/app/services/dashboard_stats.py` contiene toda la lógica de agregación como funciones puras (`compute_dashboard_stats()`), deliberadamente separadas de la consulta a la base de datos: el endpoint solo hace `SELECT * FROM request_logs` / `SELECT * FROM evaluation_logs` (carga completa en memoria — aceptable para un proyecto de un solo usuario, no diseñado para escalar a millones de filas) y delega el cálculo a funciones testeables sin necesidad de una base de datos real.
+- Métricas expuestas: totales (solicitudes, tokens, costo, latencia promedio), desglose por `task_type` y por `complexity` (conteo, tokens/costo/latencia promedio de cada grupo), tasa de aciertos de la verificación de código y de cálculo (`code_verification_pass_rate`/`calculation_verification_pass_rate`, calculadas sobre el total de verificaciones individuales, no de solicitudes), cantidad de evidencia factual recolectada, y un resumen del framework de evaluación 1-LLM vs. N-LLM (issue #14): cuántas veces ganó cada lado según el juez, empates, veces sin veredicto, y los deltas promedio de tokens/costo/latencia.
+- El frontend agrega una página nueva (`frontend/src/app/dashboard/page.tsx`, enlazada desde la página principal) que consume el endpoint y muestra estas métricas en texto plano — sin gráficas todavía, es un panel de observabilidad mínimo viable, no una herramienta de BI.
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
 - **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); múltiples rondas de deliberación (implementadas).
 - **v3:** ejecución de código y tests (implementada); motor de cálculo (implementado); búsqueda/RAG (implementada, con Wikipedia como fuente).
-- **v4:** framework de evaluación 1-LLM vs. N-LLM implementado (`/api/evaluate`, issue #14); dashboard de costos/latencia/calidad y memoria de conversaciones pendientes.
+- **v4:** framework de evaluación 1-LLM vs. N-LLM implementado (`/api/evaluate`, issue #14); dashboard de costos/latencia/calidad implementado (`/api/dashboard/stats`, issue #15); memoria de conversaciones pendiente.
 
 ## Decisiones de persistencia
 

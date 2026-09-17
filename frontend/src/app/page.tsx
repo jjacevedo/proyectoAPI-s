@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { CalculationVerificationPanel } from '@/components/CalculationVerificationPanel';
 import { ChatForm } from '@/components/ChatForm';
@@ -46,6 +47,9 @@ export default function Home() {
     <main>
       <h1>proyectoAPI-s</h1>
       <p className="subtitle">Orquestación MVP de Cerebras + Gemini + Groq (gratis) + OpenAI</p>
+      <p className="subtitle">
+        <Link href="/dashboard">Ver dashboard de costos, latencia y calidad &rarr;</Link>
+      </p>
       <label className="card meta" style={{ display: 'block' }}>
         <input
           type="checkbox"

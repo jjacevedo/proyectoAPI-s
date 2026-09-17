@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.chat import router as chat_router
+from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.evaluate import router as evaluate_router
 from app.api.routes.health import router as health_router
 from app.config import settings
@@ -19,3 +20,4 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(chat_router, prefix="/api")
 app.include_router(evaluate_router, prefix="/api")
+app.include_router(dashboard_router, prefix="/api")

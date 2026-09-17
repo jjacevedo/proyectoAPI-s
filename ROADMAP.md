@@ -39,8 +39,7 @@ Para evitar depender de créditos de pago durante esta fase temprana (issue #17:
 ## Fase 4 — Evaluación y métricas
 
 - [x] Framework experimental 1-LLM vs N-LLM (`POST /api/evaluate`, `SingleLLMBaseline` + `EvaluationJudge` como juez LLM, deltas de tokens/costo/latencia, persistido en `evaluation_logs`; issue #14).
-- [ ] Métricas de calidad, costo y latencia (dashboard agregado sobre `request_logs`/`evaluation_logs`).
-- [ ] Dashboard.
+- [x] Dashboard de costos, latencia y calidad (`GET /api/dashboard/stats` agregando `request_logs`/`evaluation_logs`, página `/dashboard` en el frontend; issue #15).
 - [ ] Memoria de conversaciones.
 - [ ] Modos rápido / deliberación / máxima verificación.
 
