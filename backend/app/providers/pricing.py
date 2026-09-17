@@ -1,0 +1,34 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ModelPricing:
+    input_per_million: float
+    output_per_million: float
+
+
+# USD / 1M tokens. Keep this table easy to update as providers change prices.
+PRICING: dict[str, ModelPricing] = {
+    "gpt-5.6-luna": ModelPricing(0.20, 1.20),
+    "gpt-5.6-terra": ModelPricing(2.00, 12.00),
+    "gpt-5.6-sol": ModelPricing(4.00, 20.00),
+    "gpt-5.6": ModelPricing(4.00, 20.00),
+    "claude-sonnet-5": ModelPricing(2.00, 10.00),
+    "claude-opus-5": ModelPricing(5.00, 25.00),
+    "claude-haiku-4-5-20251001": ModelPricing(1.00, 5.00),
+    "gemini-3.8-flash": ModelPricing(0.75, 3.75),
+    "gemini-3.7-flash": ModelPricing(0.75, 3.75),
+    "gemini-3.6-flash": ModelPricing(0.75, 3.75),
+    "gemini-3.5-flash": ModelPricing(1.50, 9.00),
+    "gemini-3.5-flash-lite": ModelPricing(0.30, 2.50),
+}
+
+
+def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
+    pricing = PRICING.get(model)
+    if pricing is None:
+        return None
+    return (
+        input_tokens * pricing.input_per_million / 1_000_000
+        + output_tokens * pricing.output_per_million / 1_000_000
+    )

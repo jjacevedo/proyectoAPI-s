@@ -1,0 +1,17 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, sans-serif; background: #f5f6f8; color: #15171a; }
+button, textarea { font: inherit; }
+main { max-width: 960px; margin: 0 auto; padding: 48px 20px; }
+h1 { margin-bottom: 8px; }
+.subtitle { color: #5d636b; margin-top: 0; }
+.card { background: white; border: 1px solid #dfe3e8; border-radius: 12px; padding: 20px; margin-top: 20px; }
+textarea { width: 100%; min-height: 140px; resize: vertical; border: 1px solid #cfd4da; border-radius: 8px; padding: 12px; }
+button { margin-top: 12px; padding: 10px 16px; border: 0; border-radius: 8px; background: #111827; color: white; cursor: pointer; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.error { color: #a21caf; white-space: pre-wrap; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge { border: 1px solid #d0d5db; border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+.badge.error { border-color: #e5a1a1; }
+.response { white-space: pre-wrap; line-height: 1.55; }
+details { margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+.meta { color: #616873; font-size: 13px; }
