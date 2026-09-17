@@ -59,9 +59,15 @@ jobs:
 
       - name: Smoke test POST /api/chat
         run: |
-          curl -sS -w "\nHTTP %{http_code}\n" -X POST http://localhost:8000/api/chat \
+          http_code=$(curl -sS -o response.json -w "%{http_code}" -X POST http://localhost:8000/api/chat \
             -H "Content-Type: application/json" \
-            -d '{"prompt":"¿Qué es una API?"}'
+            -d '{"prompt":"¿Qué es una API?"}')
+          cat response.json | python3 -m json.tool
+          echo "HTTP $http_code"
+          if [ "$http_code" != "200" ]; then
+            echo "expected HTTP 200, got $http_code — see response body above for the real provider error"
+            exit 1
+          fi
 
       - name: Verify request_logs table was migrated
         run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'

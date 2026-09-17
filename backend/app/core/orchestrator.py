@@ -218,7 +218,12 @@ class DeliberationOrchestrator:
 
         successful = [response for response in responses if response.succeeded]
         if not successful:
-            raise AllProvidersFailedError("All configured LLM providers failed")
+            # Surface each provider's own error instead of a generic message —
+            # without this, a real failure (auth, rate limit, credits) is
+            # indistinguishable from any other and impossible to diagnose from
+            # the outside (e.g. a CI smoke test log) once this exception is raised.
+            error_summary = "; ".join(f"{response.provider}: {response.error}" for response in responses)
+            raise AllProvidersFailedError(f"All configured LLM providers failed: {error_summary}")
 
         responses_by_provider_name = {response.provider: response for response in successful}
 
