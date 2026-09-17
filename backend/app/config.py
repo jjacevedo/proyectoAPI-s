@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # Tolerancia RELATIVA al comparar el numero final de un candidato contra
     # el valor de referencia calculado por el sandbox (ver calculation_verifier.py).
     calculation_tolerance: float = Field(default=1e-6, gt=0, le=1)
+    enable_fact_search: bool = True
+    fact_search_max_queries: int = Field(default=3, gt=0, le=5)
+    fact_search_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    # Idioma de Wikipedia consultado (subdominio, ej. "es", "en").
+    wikipedia_language: str = "es"
     provider_timeout_seconds: float = Field(default=45, gt=0, le=300)
     max_tokens_per_request: int = Field(default=2048, gt=0, le=128000)
     max_prompt_chars: int = Field(default=12000, gt=100, le=100000)

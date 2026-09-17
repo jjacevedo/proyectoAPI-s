@@ -33,8 +33,8 @@ Para evitar depender de créditos de pago durante esta fase temprana (issue #17:
 
 - [x] Ejecución de código y tests (`TestCaseGenerator` + `CodeVerifier`, sandbox subprocess; issue #11).
 - [x] Motor de cálculo para matemáticas (`SolverScriptGenerator` + `CalculationVerifier`, comparte el sandbox con la verificación de código vía `sandbox_runner.py`; issue #12).
-- [ ] Búsqueda y RAG para verificación factual.
-- [ ] Incorporación de evidencia externa al proceso de síntesis (más allá de código/cálculo).
+- [x] Búsqueda y RAG para verificación factual (`FactQueryGenerator` + `WikipediaClient`, API pública de Wikipedia sin key; issue #13).
+- [x] Incorporación de evidencia externa al proceso de síntesis (código, cálculo y hechos, los 3 con el mismo principio: generar evidencia independiente ANTES de ver los candidatos).
 
 ## Fase 4 — Evaluación y métricas
 

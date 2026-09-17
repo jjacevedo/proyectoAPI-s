@@ -75,3 +75,18 @@ def test_classifies_word_problem_as_math_type(router):
 def test_code_keywords_take_precedence_over_math_keywords(router):
     decision = router.classify("Escribe una función en Python que calcule el promedio de una lista.")
     assert decision.task_type == TaskType.CODE
+
+
+def test_classifies_named_entity_question_as_factual_type(router):
+    decision = router.classify("¿Quién fue Alan Turing?")
+    assert decision.task_type == TaskType.FACTUAL
+
+
+def test_classifies_capital_question_as_factual_type(router):
+    decision = router.classify("¿Cuál es la capital de Australia?")
+    assert decision.task_type == TaskType.FACTUAL
+
+
+def test_conceptual_explanation_is_not_classified_as_factual(router):
+    decision = router.classify("¿Qué es una API?")
+    assert decision.task_type == TaskType.GENERAL

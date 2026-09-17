@@ -5,10 +5,21 @@ import pytest
 from app.config import Settings
 from app.core.critic import CrossCritic
 from app.core.disagreement import DisagreementLevel
+from app.core.fact_search import FactCheckResult
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
 from app.core.reevaluator import Reevaluator
 from app.core.router import TaskRouter, TaskType
 from app.providers.base import LLMProvider, LLMResponse
+
+
+class FakeWikipediaClient:
+    def __init__(self, results_by_query: dict[str, FactCheckResult]) -> None:
+        self.results_by_query = results_by_query
+        self.calls: list[str] = []
+
+    async def search_and_summarize(self, query: str) -> FactCheckResult:
+        self.calls.append(query)
+        return self.results_by_query.get(query, FactCheckResult(query=query, error="no configurado en el fake"))
 
 
 class FakeProvider(LLMProvider):
@@ -97,6 +108,24 @@ def settings_with_calculation_verification():
         enable_reevaluation_round=False,
         enable_calculation_verification=True,
         code_execution_timeout_seconds=2,
+    )
+
+
+@pytest.fixture
+def settings_with_fact_search():
+    """Critique and reevaluation are disabled here so the synthesizer
+    provider's call count is predictable (round-1 generation, query
+    generation, synthesis — exactly 3 calls), same isolation pattern as
+    `settings_with_code_verification`/`settings_with_calculation_verification`."""
+    return Settings(
+        synthesizer_provider="openai",
+        provider_priority="openai,gemini,anthropic",
+        max_tokens_per_request=100,
+        provider_timeout_seconds=1,
+        enable_cross_critique=False,
+        enable_reevaluation_round=False,
+        enable_fact_search=True,
+        fact_search_max_queries=3,
     )
 
 
@@ -614,4 +643,123 @@ async def test_orchestrator_solver_generation_failure_does_not_block_synthesis(s
     assert result.reference_calculation is None
     assert len(result.calculation_verifications) == 1
     assert "no se pudo generar el script de cálculo" in result.calculation_verifications[0].error
+    assert result.final_answer == "final"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_runs_fact_search_for_factual_task(settings_with_fact_search):
+    queries_response = "Alan Turing nacimiento\nAlan Turing Enigma"
+    fake_wikipedia = FakeWikipediaClient({
+        "Alan Turing nacimiento": FactCheckResult(
+            query="Alan Turing nacimiento",
+            title="Alan Turing",
+            extract="Alan Turing nació el 23 de junio de 1912.",
+            url="https://es.wikipedia.org/wiki/Alan_Turing",
+        ),
+        "Alan Turing Enigma": FactCheckResult(
+            query="Alan Turing Enigma",
+            error="no se encontraron resultados en Wikipedia",
+        ),
+    })
+
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="openai-model", content="Turing nació en 1912.")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="anthropic-model", content="Turing nació en 1905.")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="gemini-model", content="No tengo información.")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="openai-model", content="Turing nació en 1912."),  # round-1
+        LLMResponse(provider="openai", model="openai-model", content=queries_response),  # query generation
+        LLMResponse(provider="openai", model="openai-model", content="final synthesis"),  # synthesis
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers,
+        settings_with_fact_search,
+        router=_always_high_router(),
+        wikipedia_client=fake_wikipedia,
+    )
+    result = await orchestrator.run("¿Quién fue Alan Turing?")
+
+    assert result.routing.task_type == TaskType.FACTUAL
+    assert providers["openai"].generate.await_count == 3
+    assert fake_wikipedia.calls == ["Alan Turing nacimiento", "Alan Turing Enigma"]
+    assert len(result.fact_search_results) == 2
+    succeeded = {r.query: r for r in result.fact_search_results}
+    assert succeeded["Alan Turing nacimiento"].succeeded
+    assert succeeded["Alan Turing nacimiento"].extract == "Alan Turing nació el 23 de junio de 1912."
+    assert not succeeded["Alan Turing Enigma"].succeeded
+    assert result.final_answer == "final synthesis"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_skips_fact_search_for_general_task(settings_with_fact_search):
+    providers = {
+        name: FakeProvider(name, LLMResponse(provider=name, model=f"{name}-model", content=name))
+        for name in ["openai", "anthropic", "gemini"]
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="openai-model", content="openai"),
+        LLMResponse(provider="openai", model="openai-model", content="final"),
+    ])
+    fake_wikipedia = FakeWikipediaClient({})
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_fact_search, router=_always_high_router(), wikipedia_client=fake_wikipedia
+    )
+    result = await orchestrator.run("Cuéntame sobre el clima de hoy.")
+
+    assert result.routing.task_type == TaskType.GENERAL
+    assert result.fact_search_results == []
+    assert fake_wikipedia.calls == []
+    assert providers["openai"].generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_enable_fact_search_false_skips_it_even_for_factual_task(settings):
+    disabled_settings = settings.model_copy(update={"enable_fact_search": False})
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="a")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="a"),
+        LLMResponse(provider="openai", model="a", content="final"),
+    ])
+    fake_wikipedia = FakeWikipediaClient({})
+
+    orchestrator = DeliberationOrchestrator(
+        providers, disabled_settings, router=_always_high_router(), wikipedia_client=fake_wikipedia
+    )
+    result = await orchestrator.run("¿Quién fue Alan Turing?")
+
+    assert result.routing.task_type == TaskType.FACTUAL
+    assert result.fact_search_results == []
+    assert fake_wikipedia.calls == []
+    assert providers["openai"].generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_query_generation_failure_does_not_block_synthesis(settings_with_fact_search):
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="a")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="a"),
+        LLMResponse(provider="openai", model="a", error="query generation boom"),
+        LLMResponse(provider="openai", model="a", content="final"),
+    ])
+    fake_wikipedia = FakeWikipediaClient({})
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_fact_search, router=_always_high_router(), wikipedia_client=fake_wikipedia
+    )
+    result = await orchestrator.run("¿Quién fue Alan Turing?")
+
+    assert len(result.fact_search_results) == 1
+    assert "no se pudieron generar consultas de búsqueda" in result.fact_search_results[0].error
+    assert fake_wikipedia.calls == []
     assert result.final_answer == "final"

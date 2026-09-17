@@ -6,6 +6,7 @@ import { ChatForm } from '@/components/ChatForm';
 import { CodeVerificationPanel } from '@/components/CodeVerificationPanel';
 import { CritiquesAccordion } from '@/components/CritiquesAccordion';
 import { DisagreementNotice } from '@/components/DisagreementNotice';
+import { FactSearchPanel } from '@/components/FactSearchPanel';
 import { FinalAnswer } from '@/components/FinalAnswer';
 import { IndividualResponsesAccordion } from '@/components/IndividualResponsesAccordion';
 import { ModelsParticipated } from '@/components/ModelsParticipated';
@@ -53,6 +54,7 @@ export default function Home() {
             referenceCalculation={response.reference_calculation}
             verifications={response.calculation_verifications}
           />
+          <FactSearchPanel results={response.fact_search_results} />
           <div className="card meta">
             Tokens: {response.total_tokens} · Costo estimado: {response.total_cost_estimated_usd == null ? 'N/D' : `$${response.total_cost_estimated_usd.toFixed(6)}`} · Latencia total: {response.latency_ms.toFixed(0)} ms
           </div>

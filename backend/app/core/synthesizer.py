@@ -2,6 +2,7 @@ from app.core.calculation_verifier import CalculationVerification
 from app.core.code_verifier import CodeVerification
 from app.core.critic import Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementLevel
+from app.core.fact_search import FactCheckResult
 from app.providers.base import LLMProvider, LLMResponse
 
 
@@ -18,6 +19,7 @@ class Synthesizer:
         disagreement: DisagreementAssessment | None = None,
         code_verifications: list[CodeVerification] | None = None,
         calculation_verifications: list[CalculationVerification] | None = None,
+        fact_search_results: list[FactCheckResult] | None = None,
     ) -> str:
         parts = [
             "You are the final synthesizer in a multi-LLM system.",
@@ -105,6 +107,21 @@ class Synthesizer:
                 "stated number does not match it, correct it in your final answer instead of "
                 "repeating the wrong number."
             )
+        if fact_search_results:
+            parts.append(
+                "\nEXTERNAL EVIDENCE (from Wikipedia, independent of any candidate — may be "
+                "incomplete or outdated, but it is a citable source, not a model's opinion):"
+            )
+            for result in fact_search_results:
+                if result.error:
+                    parts.append(f"- \"{result.query}\": could not verify ({result.error})")
+                else:
+                    parts.append(f"- \"{result.query}\" → {result.title}: {result.extract} (source: {result.url})")
+            parts.append(
+                "\nCross-check the candidates' factual claims against this evidence. If a "
+                "candidate contradicts it, correct the claim and note the discrepancy. Do not "
+                "treat agreement among candidates as proof if it contradicts this evidence."
+            )
         parts.append("\nReturn only the final user-facing answer.")
         return "\n".join(parts)
 
@@ -116,8 +133,15 @@ class Synthesizer:
         disagreement: DisagreementAssessment | None = None,
         code_verifications: list[CodeVerification] | None = None,
         calculation_verifications: list[CalculationVerification] | None = None,
+        fact_search_results: list[FactCheckResult] | None = None,
     ) -> LLMResponse:
         prompt = self.build_prompt(
-            original_prompt, responses, critiques, disagreement, code_verifications, calculation_verifications
+            original_prompt,
+            responses,
+            critiques,
+            disagreement,
+            code_verifications,
+            calculation_verifications,
+            fact_search_results,
         )
         return await self.provider.generate(prompt, max_tokens=self.max_tokens)

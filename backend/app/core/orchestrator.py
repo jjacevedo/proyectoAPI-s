@@ -6,6 +6,7 @@ from app.core.calculation_verifier import CalculationVerification, CalculationVe
 from app.core.code_verifier import CodeVerification, CodeVerifier, extract_python_code
 from app.core.critic import CrossCritic, Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementDetector, DisagreementLevel
+from app.core.fact_search import FactCheckResult, FactQueryGenerator, WikipediaClient, extract_queries
 from app.core.reevaluator import Reevaluator
 from app.core.router import RoutingDecision, TaskRouter, TaskType
 from app.core.solver_script_generator import SolverScriptGenerator
@@ -42,6 +43,8 @@ class DeliberationResult:
         calculation_verifications: list[CalculationVerification] | None = None,
         reference_calculation: str | None = None,
         solver_generation: LLMResponse | None = None,
+        fact_search_results: list[FactCheckResult] | None = None,
+        fact_query_generation: LLMResponse | None = None,
     ) -> None:
         self.final_answer = final_answer
         self.responses = responses
@@ -56,6 +59,8 @@ class DeliberationResult:
         self.calculation_verifications = calculation_verifications or []
         self.reference_calculation = reference_calculation
         self.solver_generation = solver_generation
+        self.fact_search_results = fact_search_results or []
+        self.fact_query_generation = fact_query_generation
 
 
 class DeliberationOrchestrator:
@@ -71,6 +76,8 @@ class DeliberationOrchestrator:
         code_verifier: CodeVerifier | None = None,
         solver_script_generator: SolverScriptGenerator | None = None,
         calculation_verifier: CalculationVerifier | None = None,
+        fact_query_generator: FactQueryGenerator | None = None,
+        wikipedia_client: WikipediaClient | None = None,
     ) -> None:
         self.providers = providers
         self.settings = settings
@@ -89,6 +96,12 @@ class DeliberationOrchestrator:
             settings.code_execution_timeout_seconds,
             settings.code_max_output_chars,
             settings.calculation_tolerance,
+        )
+        self.fact_query_generator = fact_query_generator or FactQueryGenerator(
+            settings.max_tokens_per_request, settings.fact_search_max_queries
+        )
+        self.wikipedia_client = wikipedia_client or WikipediaClient(
+            settings.wikipedia_language, settings.fact_search_timeout_seconds
         )
 
     async def _call_provider(self, provider: LLMProvider, prompt: str) -> LLMResponse:
@@ -169,6 +182,12 @@ class DeliberationOrchestrator:
             return value, sandbox_result.stdout, sandbox_result.stderr, sandbox_result.timed_out
         except Exception as exc:
             return None, "", f"{type(exc).__name__}: {exc}", False
+
+    async def _run_fact_search(self, query: str) -> FactCheckResult:
+        try:
+            return await self.wikipedia_client.search_and_summarize(query)
+        except Exception as exc:
+            return FactCheckResult(query=query, error=f"{type(exc).__name__}: {exc}")
 
     async def run(self, prompt: str) -> DeliberationResult:
         if not self.providers:
@@ -404,9 +423,54 @@ class DeliberationOrchestrator:
                     )
                 )
 
+        fact_search_results: list[FactCheckResult] = []
+        fact_query_response: LLMResponse | None = None
+        if decision.task_type == TaskType.FACTUAL and self.settings.enable_fact_search and successful:
+            try:
+                fact_query_response = await asyncio.wait_for(
+                    self.fact_query_generator.run(synthesizer_provider, prompt),
+                    timeout=self.settings.provider_timeout_seconds,
+                )
+            except Exception as exc:
+                fact_query_response = LLMResponse(
+                    provider=synthesizer_provider.provider_name,
+                    model=synthesizer_provider.model,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+
+            queries = (
+                extract_queries(fact_query_response.content, self.settings.fact_search_max_queries)
+                if fact_query_response.succeeded
+                else []
+            )
+            if queries:
+                search_results = await asyncio.gather(
+                    *(self._run_fact_search(query) for query in queries), return_exceptions=True
+                )
+                for query, result in zip(queries, search_results, strict=True):
+                    if isinstance(result, FactCheckResult):
+                        fact_search_results.append(result)
+                    else:
+                        fact_search_results.append(
+                            FactCheckResult(query=query, error=f"{type(result).__name__}: {result}")
+                        )
+            elif not fact_query_response.succeeded:
+                fact_search_results.append(
+                    FactCheckResult(
+                        query=prompt[:200],
+                        error=f"no se pudieron generar consultas de búsqueda: {fact_query_response.error}",
+                    )
+                )
+
         synthesis = await asyncio.wait_for(
             Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
-                prompt, successful, critiques, disagreement, code_verifications, calculation_verifications
+                prompt,
+                successful,
+                critiques,
+                disagreement,
+                code_verifications,
+                calculation_verifications,
+                fact_search_results,
             ),
             timeout=self.settings.provider_timeout_seconds,
         )
@@ -432,4 +496,6 @@ class DeliberationOrchestrator:
             calculation_verifications=calculation_verifications,
             reference_calculation=reference_calculation,
             solver_generation=solver_response,
+            fact_search_results=fact_search_results,
+            fact_query_generation=fact_query_response,
         )

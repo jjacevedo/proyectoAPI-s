@@ -154,11 +154,21 @@ Mismo principio que la verificación de código, aplicado a aritmética: un valo
 
 El `Synthesizer` recibe los resultados como evidencia objetiva y se le indica corregir explícitamente cualquier número de un candidato que no coincida con la referencia. Expuesto en `ChatResponse.reference_calculation`/`calculation_verifications` y persistido en `request_logs` (migración `0007_add_calc_verification`).
 
+## Búsqueda/RAG para verificación factual (v3, issue #13)
+
+Mismo principio de "evidencia externa objetiva antes que consenso entre modelos", aplicado a hechos puntuales sobre entidades con nombre (personas, lugares, fechas). Cuando `TaskRouter.classify()` detecta `task_type == factual` (palabras clave como "quién fue", "cuándo nació", "capital de" — ver `_FACTUAL_KEYWORDS` en `backend/app/core/router.py`; deliberadamente NO incluye "qué es"/"qué fue" porque es demasiado amplio y cubriría explicaciones conceptuales que los candidatos ya responden bien sin necesidad de una fuente externa) y `settings.enable_fact_search` está activo:
+
+1. `FactQueryGenerator` (`backend/app/core/fact_search.py`, mismo patrón que `TestCaseGenerator`/`SolverScriptGenerator`) pide al provider sintetizador hasta `settings.fact_search_max_queries` consultas de búsqueda cortas y específicas (una por línea) que ayudarían a verificar la afirmación factual de la solicitud original, ANTES de ver las respuestas candidatas.
+2. Cada consulta se resuelve contra la **API pública de Wikipedia** (`WikipediaClient`, sin API key ni cuenta: busca la página más relevante y obtiene su resumen vía `/api/rest_v1/page/summary/{title}`), en paralelo, con degradación elegante si una consulta no encuentra resultados o la red falla.
+3. El `Synthesizer` recibe los extractos de Wikipedia como evidencia externa (no como veredicto PASS/FAIL binario, a diferencia de la verificación de código/cálculo — un extracto es contexto a citar y contrastar, no un resultado de ejecución determinista) con instrucción de corregir cualquier afirmación de un candidato que la contradiga, y de no tratar el consenso entre candidatos como prueba si contradice la evidencia.
+
+**Limitación de este entorno de desarrollo, documentada honestamente:** el sandbox donde se desarrolló esta función tiene bloqueado por política de red el acceso a `*.wikipedia.org` (confirmado: `403` en el `CONNECT` del proxy). Por eso `WikipediaClient` se probó con mocks de `httpx` (mismo patrón que los tests de los providers LLM, que tampoco hacen llamadas de red reales), y la verificación de la llamada HTTP real a Wikipedia se hizo en `.github/workflows/docker-e2e.yml` (que sí tiene acceso a internet real en el runner de GitHub Actions) con un paso dedicado que falla el job si Wikipedia no devuelve datos utilizables. Expuesto en `ChatResponse.fact_search_results` y persistido en `request_logs` (migración `0008_add_fact_search`).
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
 - **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); múltiples rondas de deliberación (implementadas).
-- **v3:** ejecución de código y tests (implementada); motor de cálculo (implementado); búsqueda/RAG pendiente.
+- **v3:** ejecución de código y tests (implementada); motor de cálculo (implementado); búsqueda/RAG (implementada, con Wikipedia como fuente).
 - **v4:** los logs existentes proporcionan la base para comparar costo, latencia y calidad.
 
 ## Decisiones de persistencia

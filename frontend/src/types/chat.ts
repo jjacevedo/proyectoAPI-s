@@ -43,6 +43,14 @@ export type CalculationVerificationResponse = {
   timed_out: boolean;
 };
 
+export type FactCheckResultResponse = {
+  query: string;
+  title: string | null;
+  extract: string | null;
+  url: string | null;
+  error: string | null;
+};
+
 export type ChatResponse = {
   final_answer: string;
   responses: ProviderResponse[];
@@ -62,4 +70,5 @@ export type ChatResponse = {
   code_verifications: CodeVerificationResponse[];
   reference_calculation: string | null;
   calculation_verifications: CalculationVerificationResponse[];
+  fact_search_results: FactCheckResultResponse[];
 };

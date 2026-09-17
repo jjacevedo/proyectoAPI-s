@@ -50,6 +50,14 @@ class CalculationVerificationResponse(BaseModel):
     timed_out: bool = False
 
 
+class FactCheckResultResponse(BaseModel):
+    query: str
+    title: str | None = None
+    extract: str | None = None
+    url: str | None = None
+    error: str | None = None
+
+
 class ChatResponse(BaseModel):
     final_answer: str
     responses: list[ProviderResponse]
@@ -69,3 +77,4 @@ class ChatResponse(BaseModel):
     code_verifications: list[CodeVerificationResponse]
     reference_calculation: str | None
     calculation_verifications: list[CalculationVerificationResponse]
+    fact_search_results: list[FactCheckResultResponse]

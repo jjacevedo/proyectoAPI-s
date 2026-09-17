@@ -6,6 +6,7 @@ from app.api.routes.chat import get_orchestrator
 from app.core.calculation_verifier import CalculationVerification
 from app.core.code_verifier import CodeVerification
 from app.core.critic import Critique
+from app.core.fact_search import FactCheckResult
 from app.core.disagreement import DisagreementAssessment, DisagreementLevel
 from app.core.orchestrator import DeliberationResult
 from app.core.router import RoutingDecision, TaskComplexity, TaskType
@@ -103,6 +104,31 @@ class FakeOrchestratorWithCalculationVerification:
             calculation_verifications=[verification],
             reference_calculation="print('__CALC_RESULT__ 240')",
             solver_generation=solver_generation,
+        )
+
+
+class FakeOrchestratorWithFactSearch:
+    async def run(self, prompt: str):
+        response = LLMResponse(provider="openai", model="test", content="final", tokens=4)
+        routing = RoutingDecision(
+            complexity=TaskComplexity.LOW, provider_count=1, reason="test", task_type=TaskType.FACTUAL
+        )
+        fact_query_generation = LLMResponse(
+            provider="openai", model="test", content="Alan Turing nacimiento", tokens=6
+        )
+        fact_result = FactCheckResult(
+            query="Alan Turing nacimiento",
+            title="Alan Turing",
+            extract="Alan Turing nació el 23 de junio de 1912.",
+            url="https://es.wikipedia.org/wiki/Alan_Turing",
+        )
+        return DeliberationResult(
+            "final",
+            [response],
+            12.5,
+            routing,
+            fact_search_results=[fact_result],
+            fact_query_generation=fact_query_generation,
         )
 
 
@@ -283,3 +309,33 @@ async def test_chat_endpoint_exposes_calculation_verification(client):
     assert data["calculation_verifications"][0]["passed"] is True
     assert data["calculation_verifications"][0]["reference_value"] == 240.0
     assert data["total_tokens"] == 4 + 7
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_exposes_fact_search(client):
+    from app.main import app
+
+    app.dependency_overrides[get_orchestrator] = lambda: FakeOrchestratorWithFactSearch()
+    from app.api.deps import get_db
+
+    class FakeSession:
+        async def commit(self):
+            pass
+
+        def add(self, item):
+            pass
+
+    async def fake_db():
+        yield FakeSession()
+
+    app.dependency_overrides[get_db] = fake_db
+    response = await client.post("/api/chat", json={"prompt": "hello"})
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task_type"] == "factual"
+    assert len(data["fact_search_results"]) == 1
+    assert data["fact_search_results"][0]["query"] == "Alan Turing nacimiento"
+    assert data["fact_search_results"][0]["extract"] == "Alan Turing nació el 23 de junio de 1912."
+    assert data["total_tokens"] == 4 + 6

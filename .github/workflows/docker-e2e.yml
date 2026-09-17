@@ -66,6 +66,29 @@ jobs:
       - name: Verify request_logs table was migrated
         run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'
 
+      - name: Smoke test real Wikipedia fact search (issue #13)
+        run: |
+          response=$(curl -sS -X POST http://localhost:8000/api/chat \
+            -H "Content-Type: application/json" \
+            -d '{"prompt":"¿Quién fue Alan Turing?"}')
+          echo "$response" | python3 -m json.tool
+          task_type=$(echo "$response" | jq -r '.task_type')
+          if [ "$task_type" != "factual" ]; then
+            echo "expected task_type=factual, got $task_type"
+            exit 1
+          fi
+          result_count=$(echo "$response" | jq '.fact_search_results | length')
+          if [ "$result_count" -lt 1 ]; then
+            echo "expected at least 1 fact_search_results entry, got $result_count"
+            exit 1
+          fi
+          successful_count=$(echo "$response" | jq '[.fact_search_results[] | select(.error == null)] | length')
+          if [ "$successful_count" -lt 1 ]; then
+            echo "no fact_search_results entry succeeded — real Wikipedia call did not return usable data"
+            exit 1
+          fi
+          echo "Real Wikipedia call succeeded: $successful_count/$result_count queries resolved."
+
       - name: Smoke test frontend
         run: curl -sf http://localhost:3000 > /dev/null
 

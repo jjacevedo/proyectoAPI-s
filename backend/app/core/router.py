@@ -13,6 +13,7 @@ class TaskComplexity(str, Enum):
 class TaskType(str, Enum):
     CODE = "code"
     MATH = "math"
+    FACTUAL = "factual"
     GENERAL = "general"
 
 
@@ -57,6 +58,22 @@ _MATH_KEYWORDS = (
     "aritmetica",
 )
 
+# Independiente de complejidad/_CODE_KEYWORDS/_MATH_KEYWORDS: preguntas
+# clasicas de busqueda de un hecho puntual sobre una entidad con nombre
+# (issue #13), donde una fuente externa (Wikipedia) es evidencia mas fuerte
+# que el consenso entre modelos. Deliberadamente NO incluye "qué es"/"qué
+# fue" (demasiado amplio: cubriria explicaciones conceptuales/tecnicas que
+# ya sirven bien los candidatos sin necesidad de una busqueda externa).
+_FACTUAL_KEYWORDS = (
+    "quién es", "quien es", "quién fue", "quien fue", "cuándo nació",
+    "cuando nacio", "cuándo murió", "cuando murio", "en qué año",
+    "en que año", "capital de", "población de", "poblacion de",
+    "quién descubrió", "quien descubrio", "quién inventó", "quien invento",
+    "quién ganó", "quien gano", "cuántos habitantes tiene",
+    "cuantos habitantes tiene", "dónde queda", "donde queda",
+    "dónde está ubicad", "donde esta ubicad",
+)
+
 
 @dataclass(frozen=True)
 class RoutingDecision:
@@ -83,6 +100,8 @@ class TaskRouter:
             task_type = TaskType.CODE
         elif any(keyword in normalized for keyword in _MATH_KEYWORDS):
             task_type = TaskType.MATH
+        elif any(keyword in normalized for keyword in _FACTUAL_KEYWORDS):
+            task_type = TaskType.FACTUAL
         else:
             task_type = TaskType.GENERAL
 

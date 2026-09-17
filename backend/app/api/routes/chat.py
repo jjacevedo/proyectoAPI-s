@@ -11,6 +11,7 @@ from app.schemas.chat import (
     ChatResponse,
     CodeVerificationResponse,
     CritiqueResponse,
+    FactCheckResultResponse,
     ProviderResponse,
 )
 from app.services.request_logger import persist_request
@@ -101,10 +102,24 @@ async def chat(
         )
         for verification in result.calculation_verifications
     ]
+    fact_search_result_models = [
+        FactCheckResultResponse(
+            query=result_item.query,
+            title=result_item.title,
+            extract=result_item.extract,
+            url=result_item.url,
+            error=result_item.error,
+        )
+        for result_item in result.fact_search_results
+    ]
     test_generation_tokens = result.test_generation.tokens if result.test_generation else 0
     test_generation_cost = result.test_generation.cost_estimated_usd if result.test_generation else None
     solver_generation_tokens = result.solver_generation.tokens if result.solver_generation else 0
     solver_generation_cost = result.solver_generation.cost_estimated_usd if result.solver_generation else None
+    fact_query_generation_tokens = result.fact_query_generation.tokens if result.fact_query_generation else 0
+    fact_query_generation_cost = (
+        result.fact_query_generation.cost_estimated_usd if result.fact_query_generation else None
+    )
 
     costs = [item.cost_estimated_usd for item in response_models if item.cost_estimated_usd is not None]
     costs += [item.cost_estimated_usd for item in critique_models if item.cost_estimated_usd is not None]
@@ -113,6 +128,8 @@ async def chat(
         costs.append(test_generation_cost)
     if solver_generation_cost is not None:
         costs.append(solver_generation_cost)
+    if fact_query_generation_cost is not None:
+        costs.append(fact_query_generation_cost)
     return ChatResponse(
         final_answer=result.final_answer,
         responses=response_models,
@@ -123,7 +140,8 @@ async def chat(
         + sum(item.tokens for item in critique_models)
         + sum(item.tokens for item in revision_models)
         + test_generation_tokens
-        + solver_generation_tokens,
+        + solver_generation_tokens
+        + fact_query_generation_tokens,
         total_cost_estimated_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,
@@ -136,4 +154,5 @@ async def chat(
         code_verifications=code_verification_models,
         reference_calculation=result.reference_calculation,
         calculation_verifications=calculation_verification_models,
+        fact_search_results=fact_search_result_models,
     )
