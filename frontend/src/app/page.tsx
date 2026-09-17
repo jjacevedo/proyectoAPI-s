@@ -6,26 +6,35 @@ import { ChatForm } from '@/components/ChatForm';
 import { CodeVerificationPanel } from '@/components/CodeVerificationPanel';
 import { CritiquesAccordion } from '@/components/CritiquesAccordion';
 import { DisagreementNotice } from '@/components/DisagreementNotice';
+import { EvaluationPanel } from '@/components/EvaluationPanel';
 import { FactSearchPanel } from '@/components/FactSearchPanel';
 import { FinalAnswer } from '@/components/FinalAnswer';
 import { IndividualResponsesAccordion } from '@/components/IndividualResponsesAccordion';
 import { ModelsParticipated } from '@/components/ModelsParticipated';
 import { RevisionsAccordion } from '@/components/RevisionsAccordion';
-import { sendChat } from '@/lib/api';
+import { sendChat, sendEvaluate } from '@/lib/api';
 import type { ChatResponse } from '@/types/chat';
+import type { EvaluateResponse } from '@/types/evaluate';
 
 export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [evaluateMode, setEvaluateMode] = useState(false);
   const [response, setResponse] = useState<ChatResponse | null>(null);
+  const [evaluation, setEvaluation] = useState<EvaluateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
     setLoading(true);
     setError(null);
     setResponse(null);
+    setEvaluation(null);
     try {
-      setResponse(await sendChat(prompt));
+      if (evaluateMode) {
+        setEvaluation(await sendEvaluate(prompt));
+      } else {
+        setResponse(await sendChat(prompt));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -37,8 +46,17 @@ export default function Home() {
     <main>
       <h1>proyectoAPI-s</h1>
       <p className="subtitle">Orquestación MVP de Cerebras + Gemini + Groq (gratis) + OpenAI</p>
+      <label className="card meta" style={{ display: 'block' }}>
+        <input
+          type="checkbox"
+          checked={evaluateMode}
+          onChange={(event) => setEvaluateMode(event.target.checked)}
+        />{' '}
+        Modo evaluación: comparar 1 LLM vs. deliberación multi-LLM
+      </label>
       <ChatForm prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit} loading={loading} />
       {error && <div className="card error">{error}</div>}
+      {evaluation && <EvaluationPanel evaluation={evaluation} />}
       {response && (
         <>
           <FinalAnswer answer={response.final_answer} />

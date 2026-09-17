@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     fact_search_timeout_seconds: float = Field(default=10, gt=0, le=60)
     # Idioma de Wikipedia consultado (subdominio, ej. "es", "en").
     wikipedia_language: str = "es"
+    # Framework de evaluacion 1-LLM vs N-LLM (issue #14, POST /api/evaluate).
+    enable_evaluation_judge: bool = True
+    # Provider que actua como juez comparando ambas respuestas. Si no esta
+    # configurado o no esta disponible, se usa el mismo que synthesizer_provider.
+    evaluation_judge_provider: str | None = None
     provider_timeout_seconds: float = Field(default=45, gt=0, le=300)
     max_tokens_per_request: int = Field(default=2048, gt=0, le=128000)
     max_prompt_chars: int = Field(default=12000, gt=100, le=100000)

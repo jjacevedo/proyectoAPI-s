@@ -1,0 +1,20 @@
+export type EvaluateResponse = {
+  prompt: string;
+  single_answer: string | null;
+  single_provider: string;
+  single_model: string;
+  single_tokens: number;
+  single_cost_estimated_usd: number | null;
+  single_latency_ms: number;
+  single_error: string | null;
+  multi_answer: string;
+  multi_tokens: number;
+  multi_cost_estimated_usd: number | null;
+  multi_latency_ms: number;
+  token_delta: number;
+  cost_delta_usd: number | null;
+  latency_delta_ms: number;
+  judge_verdict: string | null;
+  judge_reasoning: string | null;
+  judge_error: string | null;
+};

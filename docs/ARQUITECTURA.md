@@ -164,12 +164,23 @@ Mismo principio de "evidencia externa objetiva antes que consenso entre modelos"
 
 **Limitación de este entorno de desarrollo, documentada honestamente:** el sandbox donde se desarrolló esta función tiene bloqueado por política de red el acceso a `*.wikipedia.org` (confirmado: `403` en el `CONNECT` del proxy). Por eso `WikipediaClient` se probó con mocks de `httpx` (mismo patrón que los tests de los providers LLM, que tampoco hacen llamadas de red reales), y la verificación de la llamada HTTP real a Wikipedia se hizo en `.github/workflows/docker-e2e.yml` (que sí tiene acceso a internet real en el runner de GitHub Actions) con un paso dedicado que falla el job si Wikipedia no devuelve datos utilizables. Expuesto en `ChatResponse.fact_search_results` y persistido en `request_logs` (migración `0008_add_fact_search`).
 
+## Framework de evaluación 1-LLM vs. N-LLM (v4, issue #14)
+
+Endpoint independiente `POST /api/evaluate` (`backend/app/api/routes/evaluate.py`) que responde la pregunta central del proyecto — ¿la deliberación multi-LLM realmente vale el costo/latencia extra frente a un solo LLM? — con una comparación directa en la misma solicitud:
+
+1. `SingleLLMBaseline` (`backend/app/core/evaluator.py`) llama una sola vez al provider configurado como sintetizador (`settings.synthesizer_provider`, o el primero disponible) con el prompt del usuario, sin router ni deliberación — el baseline más simple posible.
+2. En paralelo lógico (mismo request), `DeliberationOrchestrator.run()` se ejecuta normalmente con el pipeline completo (router, generación paralela, crítica, síntesis, verificación según `task_type`).
+3. Si `settings.enable_evaluation_judge` está activo y el baseline tuvo éxito, `EvaluationJudge` le pide a un tercer LLM (`settings.evaluation_judge_provider`, o el sintetizador) que compare ambas respuestas a ciegas y emita un veredicto estructurado (`__VERDICT__ single|multi|tie` — mismo patrón de marcador que `__CALC_RESULT__`/`__VERIFICATION_SUMMARY__`) con su razonamiento. **Esto es evidencia de un juez LLM, no una verdad objetiva** — a diferencia de la verificación de código/cálculo (deterministas), aquí el "árbitro" es otro modelo con sus propios sesgos; se expone como tal en la respuesta (`judge_verdict`/`judge_reasoning`), nunca como un hecho verificado.
+4. La respuesta incluye deltas explícitos (`token_delta`, `cost_delta_usd`, `latency_delta_ms`) calculados con el mismo criterio de totales que `/api/chat` (`_deliberation_totals()`, deliberadamente no compartido con `chat.py` para no arriesgar una regresión en código ya verificado), y se persiste en `evaluation_logs` (migración `0009_add_evaluation_logs`) para poder analizar tendencias a futuro sin depender de logs manuales.
+
+Degradación elegante: si no hay providers configurados, `502`; si el juez falla (rate limit, error de red), la comparación cuantitativa (tokens/costo/latencia) se devuelve igual, solo sin veredicto cualitativo (`judge_error` explica por qué). El frontend expone un checkbox "Modo evaluación" en la página principal (`EvaluationPanel.tsx`) que alterna entre llamar `/api/chat` o `/api/evaluate` con el mismo formulario.
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
 - **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); múltiples rondas de deliberación (implementadas).
 - **v3:** ejecución de código y tests (implementada); motor de cálculo (implementado); búsqueda/RAG (implementada, con Wikipedia como fuente).
-- **v4:** los logs existentes proporcionan la base para comparar costo, latencia y calidad.
+- **v4:** framework de evaluación 1-LLM vs. N-LLM implementado (`/api/evaluate`, issue #14); dashboard de costos/latencia/calidad y memoria de conversaciones pendientes.
 
 ## Decisiones de persistencia
 

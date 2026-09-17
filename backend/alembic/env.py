@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import settings
 from app.db.base import Base
+from app.models.evaluation_log import EvaluationLog  # noqa: F401
 from app.models.request_log import RequestLog  # noqa: F401
 
 config = context.config
