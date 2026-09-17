@@ -1,8 +1,18 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=12000)
+    # Memoria de conversaciones (issue #16). Si se pasa conversation_id, el
+    # mensaje se agrega a esa conversacion existente y "mode" se ignora (ya
+    # quedo fijado al crearla). Si no, se crea una conversacion nueva con el
+    # modo indicado (o "deliberation" si no se especifica). Si ninguno de los
+    # dos campos se envia, el comportamiento es identico al de antes de este
+    # issue: sin memoria, sin conversation_id en la respuesta.
+    conversation_id: int | None = None
+    mode: Literal["fast", "deliberation", "max_verification"] | None = None
 
 
 class ProviderResponse(BaseModel):
@@ -59,6 +69,7 @@ class FactCheckResultResponse(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    conversation_id: int | None = None
     final_answer: str
     responses: list[ProviderResponse]
     critiques: list[CritiqueResponse]

@@ -183,12 +183,21 @@ Endpoint de solo lectura `GET /api/dashboard/stats` (`backend/app/api/routes/das
 - Métricas expuestas: totales (solicitudes, tokens, costo, latencia promedio), desglose por `task_type` y por `complexity` (conteo, tokens/costo/latencia promedio de cada grupo), tasa de aciertos de la verificación de código y de cálculo (`code_verification_pass_rate`/`calculation_verification_pass_rate`, calculadas sobre el total de verificaciones individuales, no de solicitudes), cantidad de evidencia factual recolectada, y un resumen del framework de evaluación 1-LLM vs. N-LLM (issue #14): cuántas veces ganó cada lado según el juez, empates, veces sin veredicto, y los deltas promedio de tokens/costo/latencia.
 - El frontend agrega una página nueva (`frontend/src/app/dashboard/page.tsx`, enlazada desde la página principal) que consume el endpoint y muestra estas métricas en texto plano — sin gráficas todavía, es un panel de observabilidad mínimo viable, no una herramienta de BI.
 
+## Memoria de conversaciones y modos (v4, issue #16)
+
+Como el proyecto no tiene autenticación ni cuentas de usuario, "perfiles de usuario" se implementó como una preferencia fijada por conversación (no por persona): el `mode` (`fast`/`deliberation`/`max_verification`) se elige al crear la conversación y queda fijo para todos sus turnos siguientes.
+
+- Dos tablas nuevas, sin relación con `request_logs`/`evaluation_logs`: `conversations` (`id`, `mode`, `created_at`) y `messages` (`id`, `conversation_id` FK, `role`, `content`, `created_at`) — migración `0010_add_conversations`.
+- **Diseño opt-in, deliberadamente aditivo:** `POST /api/chat` acepta ahora `conversation_id`/`mode` opcionales. Si ninguno de los dos se envía, el comportamiento es idéntico al de antes de este issue —cero llamadas nuevas a la base de datos, cero riesgo de regresión sobre el camino feliz ya verificado. Solo cuando se envía alguno de los dos se activa la memoria: se crea o recupera la `Conversation`, se cargan sus últimos `settings.conversation_history_max_messages` mensajes (`conversation_service.get_recent_messages()`), y se antepone ese historial al nuevo prompt (`build_contextual_prompt()`) antes de mandarlo a los providers. Cada turno persiste el mensaje del usuario y la respuesta final como dos filas en `messages`.
+- **Modos:** `TaskRouter` ahora acepta un `forced_complexity` opcional que, cuando está presente, ignora por completo la heurística de palabras clave/longitud y fuerza siempre 1 o 3 providers (mismo `task_type` se sigue detectando normalmente, ya que la verificación externa depende de él, no de la complejidad). `fast` fuerza `LOW` (1 provider) y desactiva crítica cruzada/reevaluación (`settings.model_copy(update=...)`, sin mutar la configuración global); `max_verification` fuerza `HIGH` (3 providers) y activa toda la deliberación y verificación externa disponible sin importar el prompt; `deliberation` (por defecto) no cambia nada respecto al comportamiento anterior a este issue.
+- **Limitación conocida, documentada honestamente:** el historial se antepone al MISMO prompt que el router usa para clasificar `task_type`/complejidad (no hay una separación entre "prompt de clasificación" y "prompt de generación"), así que una conversación muy larga podría, en teoría, hacer que palabras de turnos anteriores activen una verificación externa (código/cálculo/hechos) no relacionada con el mensaje nuevo. Se mitiga acotando el historial a un número configurable de mensajes recientes, pero no se eliminó el riesgo con un rediseño mayor del orquestador — quedó fuera de alcance de este issue.
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
 - **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); múltiples rondas de deliberación (implementadas).
 - **v3:** ejecución de código y tests (implementada); motor de cálculo (implementado); búsqueda/RAG (implementada, con Wikipedia como fuente).
-- **v4:** framework de evaluación 1-LLM vs. N-LLM implementado (`/api/evaluate`, issue #14); dashboard de costos/latencia/calidad implementado (`/api/dashboard/stats`, issue #15); memoria de conversaciones pendiente.
+- **v4:** framework de evaluación 1-LLM vs. N-LLM implementado (`/api/evaluate`, issue #14); dashboard de costos/latencia/calidad implementado (`/api/dashboard/stats`, issue #15); memoria de conversaciones y modos implementados (`conversation_id`/`mode` en `/api/chat`, issue #16).
 
 ## Decisiones de persistencia
 

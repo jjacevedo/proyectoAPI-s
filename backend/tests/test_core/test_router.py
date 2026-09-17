@@ -90,3 +90,23 @@ def test_classifies_capital_question_as_factual_type(router):
 def test_conceptual_explanation_is_not_classified_as_factual(router):
     decision = router.classify("¿Qué es una API?")
     assert decision.task_type == TaskType.GENERAL
+
+
+def test_forced_complexity_low_overrides_keyword_heuristic():
+    forced_router = TaskRouter(forced_complexity=TaskComplexity.LOW)
+    decision = forced_router.classify("Diseña una arquitectura de microservicios escalable y segura")
+    assert decision.complexity == TaskComplexity.LOW
+    assert decision.provider_count == 1
+
+
+def test_forced_complexity_high_overrides_short_prompt():
+    forced_router = TaskRouter(forced_complexity=TaskComplexity.HIGH)
+    decision = forced_router.classify("hola")
+    assert decision.complexity == TaskComplexity.HIGH
+    assert decision.provider_count == 3
+
+
+def test_forced_complexity_still_classifies_task_type():
+    forced_router = TaskRouter(forced_complexity=TaskComplexity.LOW)
+    decision = forced_router.classify("Escribe una función en Python que sume dos números")
+    assert decision.task_type == TaskType.CODE

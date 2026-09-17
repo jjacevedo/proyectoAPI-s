@@ -89,9 +89,18 @@ class TaskRouter:
     principio de abstraccion que LLMProvider).
     """
 
-    def __init__(self, low_threshold_chars: int = 60, high_threshold_chars: int = 220) -> None:
+    def __init__(
+        self,
+        low_threshold_chars: int = 60,
+        high_threshold_chars: int = 220,
+        forced_complexity: TaskComplexity | None = None,
+    ) -> None:
         self.low_threshold_chars = low_threshold_chars
         self.high_threshold_chars = high_threshold_chars
+        # Usado por los modos "rápido"/"máxima verificación" (issue #16) para
+        # saltarse la heurística de longitud/palabras clave y forzar siempre
+        # 1 o 3 providers, sin importar el contenido del prompt.
+        self.forced_complexity = forced_complexity
 
     def classify(self, prompt: str) -> RoutingDecision:
         normalized = prompt.lower()
@@ -104,6 +113,17 @@ class TaskRouter:
             task_type = TaskType.FACTUAL
         else:
             task_type = TaskType.GENERAL
+
+        if self.forced_complexity is not None:
+            provider_count = {TaskComplexity.LOW: 1, TaskComplexity.MEDIUM: 2, TaskComplexity.HIGH: 3}[
+                self.forced_complexity
+            ]
+            return RoutingDecision(
+                complexity=self.forced_complexity,
+                provider_count=provider_count,
+                reason="complejidad forzada por el modo de conversación",
+                task_type=task_type,
+            )
 
         if any(keyword in normalized for keyword in _HIGH_COMPLEXITY_KEYWORDS) or length > self.high_threshold_chars:
             return RoutingDecision(

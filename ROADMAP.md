@@ -40,8 +40,8 @@ Para evitar depender de créditos de pago durante esta fase temprana (issue #17:
 
 - [x] Framework experimental 1-LLM vs N-LLM (`POST /api/evaluate`, `SingleLLMBaseline` + `EvaluationJudge` como juez LLM, deltas de tokens/costo/latencia, persistido en `evaluation_logs`; issue #14).
 - [x] Dashboard de costos, latencia y calidad (`GET /api/dashboard/stats` agregando `request_logs`/`evaluation_logs`, página `/dashboard` en el frontend; issue #15).
-- [ ] Memoria de conversaciones.
-- [ ] Modos rápido / deliberación / máxima verificación.
+- [x] Memoria de conversaciones (`conversations`/`messages`, `conversation_id` opcional en `/api/chat`; issue #16).
+- [x] Modos rápido / deliberación / máxima verificación (`mode` fijado por conversación, fuerza complejidad y activa/desactiva deliberación y verificación externa; issue #16).
 
 ## Principio de evolución
 

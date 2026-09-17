@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.config import settings
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
+from app.core.router import TaskComplexity, TaskRouter
 from app.providers.registry import build_providers
 from app.schemas.chat import (
     CalculationVerificationResponse,
@@ -14,13 +15,52 @@ from app.schemas.chat import (
     FactCheckResultResponse,
     ProviderResponse,
 )
+from app.services.conversation_service import (
+    append_message,
+    build_contextual_prompt,
+    create_conversation,
+    get_conversation,
+    get_recent_messages,
+)
 from app.services.request_logger import persist_request
 
 router = APIRouter(tags=["chat"])
 
+# "fast" salta la critica cruzada/reevaluacion y fuerza 1 solo provider;
+# "max_verification" fuerza 3 providers y activa toda la deliberacion y
+# verificacion externa disponible, sin importar el largo/tipo del prompt.
+_MODE_SETTINGS_OVERRIDES = {
+    "fast": {"enable_cross_critique": False, "enable_reevaluation_round": False},
+    "max_verification": {
+        "enable_cross_critique": True,
+        "enable_reevaluation_round": True,
+        "enable_code_verification": True,
+        "enable_calculation_verification": True,
+        "enable_fact_search": True,
+    },
+}
+_MODE_FORCED_COMPLEXITY = {
+    "fast": TaskComplexity.LOW,
+    "max_verification": TaskComplexity.HIGH,
+}
+
 
 def get_orchestrator() -> DeliberationOrchestrator:
     return DeliberationOrchestrator(build_providers(settings), settings)
+
+
+def _build_orchestrator_for_mode(mode: str) -> DeliberationOrchestrator:
+    overrides = _MODE_SETTINGS_OVERRIDES.get(mode)
+    mode_settings = settings.model_copy(update=overrides) if overrides else settings
+    router_override = TaskRouter(forced_complexity=_MODE_FORCED_COMPLEXITY.get(mode))
+    return DeliberationOrchestrator(build_providers(mode_settings), mode_settings, router=router_override)
+
+
+def get_mode_orchestrator_builder():
+    """Fabrica de orchestrators para modos != 'deliberation' (issue #16),
+    inyectable igual que get_orchestrator para poder sustituirla en tests
+    sin necesitar providers reales configurados."""
+    return _build_orchestrator_for_mode
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -28,13 +68,40 @@ async def chat(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),
     orchestrator: DeliberationOrchestrator = Depends(get_orchestrator),
+    mode_orchestrator_builder=Depends(get_mode_orchestrator_builder),
 ) -> ChatResponse:
     if len(request.prompt) > settings.max_prompt_chars:
         raise HTTPException(status_code=413, detail="Prompt exceeds the configured character limit")
+
+    conversation_id: int | None = None
+    active_orchestrator = orchestrator
+    prompt_for_providers = request.prompt
+
+    # Memoria de conversaciones (issue #16) es opt-in: si ni conversation_id
+    # ni mode se envian, el comportamiento es identico al de /api/chat antes
+    # de este issue (sin tocar la base de datos de conversaciones/mensajes).
+    if request.conversation_id is not None or request.mode is not None:
+        if request.conversation_id is not None:
+            conversation = await get_conversation(db, request.conversation_id)
+            if conversation is None:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+        else:
+            conversation = await create_conversation(db, request.mode or "deliberation")
+
+        history = await get_recent_messages(db, conversation.id, settings.conversation_history_max_messages)
+        prompt_for_providers = build_contextual_prompt(history, request.prompt)
+        if conversation.mode != "deliberation":
+            active_orchestrator = mode_orchestrator_builder(conversation.mode)
+        conversation_id = conversation.id
+
     try:
-        result = await orchestrator.run(request.prompt)
+        result = await active_orchestrator.run(prompt_for_providers)
     except AllProvidersFailedError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if conversation_id is not None:
+        await append_message(db, conversation_id, "user", request.prompt)
+        await append_message(db, conversation_id, "assistant", result.final_answer)
 
     await persist_request(db, request.prompt, result)
     response_models = [
@@ -131,6 +198,7 @@ async def chat(
     if fact_query_generation_cost is not None:
         costs.append(fact_query_generation_cost)
     return ChatResponse(
+        conversation_id=conversation_id,
         final_answer=result.final_answer,
         responses=response_models,
         critiques=critique_models,

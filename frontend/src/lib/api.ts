@@ -1,4 +1,4 @@
-import type { ChatResponse } from '@/types/chat';
+import type { ChatResponse, ConversationMode } from '@/types/chat';
 import type { DashboardStats } from '@/types/dashboard';
 import type { EvaluateResponse } from '@/types/evaluate';
 
@@ -33,8 +33,15 @@ async function getJson<T>(path: string): Promise<T> {
   return handleResponse<T>(response);
 }
 
-export async function sendChat(prompt: string): Promise<ChatResponse> {
-  return postJson<ChatResponse>('/api/chat', { prompt });
+export async function sendChat(
+  prompt: string,
+  options?: { conversationId?: number | null; mode?: ConversationMode }
+): Promise<ChatResponse> {
+  return postJson<ChatResponse>('/api/chat', {
+    prompt,
+    conversation_id: options?.conversationId ?? null,
+    mode: options?.mode ?? null,
+  });
 }
 
 export async function sendEvaluate(prompt: string): Promise<EvaluateResponse> {

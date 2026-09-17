@@ -14,8 +14,10 @@ import { IndividualResponsesAccordion } from '@/components/IndividualResponsesAc
 import { ModelsParticipated } from '@/components/ModelsParticipated';
 import { RevisionsAccordion } from '@/components/RevisionsAccordion';
 import { sendChat, sendEvaluate } from '@/lib/api';
-import type { ChatResponse } from '@/types/chat';
+import type { ChatResponse, ConversationMode } from '@/types/chat';
 import type { EvaluateResponse } from '@/types/evaluate';
+
+type Turn = { role: 'user' | 'assistant'; content: string };
 
 export default function Home() {
   const [prompt, setPrompt] = useState('');
@@ -24,6 +26,16 @@ export default function Home() {
   const [response, setResponse] = useState<ChatResponse | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ConversationMode>('deliberation');
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+
+  function startNewConversation() {
+    setConversationId(null);
+    setTurns([]);
+    setResponse(null);
+    setError(null);
+  }
 
   async function handleSubmit() {
     setLoading(true);
@@ -34,7 +46,10 @@ export default function Home() {
       if (evaluateMode) {
         setEvaluation(await sendEvaluate(prompt));
       } else {
-        setResponse(await sendChat(prompt));
+        const result = await sendChat(prompt, { conversationId, mode });
+        setResponse(result);
+        setConversationId(result.conversation_id);
+        setTurns((prev) => [...prev, { role: 'user', content: prompt }, { role: 'assistant', content: result.final_answer }]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -58,9 +73,41 @@ export default function Home() {
         />{' '}
         Modo evaluación: comparar 1 LLM vs. deliberación multi-LLM
       </label>
+      {!evaluateMode && (
+        <div className="card meta" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <label>
+            Modo de conversación:{' '}
+            <select
+              value={mode}
+              disabled={conversationId !== null}
+              onChange={(event) => setMode(event.target.value as ConversationMode)}
+            >
+              <option value="deliberation">Deliberación (por defecto)</option>
+              <option value="fast">Rápido</option>
+              <option value="max_verification">Máxima verificación</option>
+            </select>
+          </label>
+          {conversationId !== null && (
+            <span>
+              Conversación #{conversationId} ({turns.length / 2} turnos) ·{' '}
+              <button onClick={startNewConversation}>Nueva conversación</button>
+            </span>
+          )}
+        </div>
+      )}
       <ChatForm prompt={prompt} setPrompt={setPrompt} onSubmit={handleSubmit} loading={loading} />
       {error && <div className="card error">{error}</div>}
       {evaluation && <EvaluationPanel evaluation={evaluation} />}
+      {!evaluateMode && turns.length > 2 && (
+        <section className="card">
+          <h2>Historial de la conversación</h2>
+          {turns.slice(0, -2).map((turn, index) => (
+            <p key={index} className="meta">
+              <strong>{turn.role === 'user' ? 'Tú' : 'Asistente'}:</strong> {turn.content}
+            </p>
+          ))}
+        </section>
+      )}
       {response && (
         <>
           <FinalAnswer answer={response.final_answer} />

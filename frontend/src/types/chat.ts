@@ -51,7 +51,10 @@ export type FactCheckResultResponse = {
   error: string | null;
 };
 
+export type ConversationMode = 'fast' | 'deliberation' | 'max_verification';
+
 export type ChatResponse = {
+  conversation_id: number | null;
   final_answer: string;
   responses: ProviderResponse[];
   critiques: CritiqueResponse[];

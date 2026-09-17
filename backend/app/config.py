@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # Provider que actua como juez comparando ambas respuestas. Si no esta
     # configurado o no esta disponible, se usa el mismo que synthesizer_provider.
     evaluation_judge_provider: str | None = None
+    # Memoria de conversaciones (issue #16): cuantos mensajes previos (usuario
+    # + asistente) se incluyen como contexto en el prompt enviado a los
+    # providers. Un numero acotado evita que una conversacion larga infle el
+    # consumo de tokens sin limite.
+    conversation_history_max_messages: int = Field(default=10, gt=0, le=50)
     provider_timeout_seconds: float = Field(default=45, gt=0, le=300)
     max_tokens_per_request: int = Field(default=2048, gt=0, le=128000)
     max_prompt_chars: int = Field(default=12000, gt=100, le=100000)
