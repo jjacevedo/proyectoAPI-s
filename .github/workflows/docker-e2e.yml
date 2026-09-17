@@ -69,6 +69,26 @@ jobs:
             exit 1
           fi
 
+      - name: Diagnostic - POST /api/chat with medium complexity (issue #18)
+        if: always()
+        continue-on-error: true
+        run: |
+          http_code=$(curl -sS -o response_medium.json -w "%{http_code}" -X POST http://localhost:8000/api/chat \
+            -H "Content-Type: application/json" \
+            -d '{"prompt":"Explica cómo funciona el garbage collector de Python"}')
+          cat response_medium.json | python3 -m json.tool
+          echo "HTTP $http_code (medium complexity -> should try 2 free providers per PROVIDER_PRIORITY)"
+
+      - name: Diagnostic - POST /api/chat with high complexity (issue #18)
+        if: always()
+        continue-on-error: true
+        run: |
+          http_code=$(curl -sS -o response_high.json -w "%{http_code}" -X POST http://localhost:8000/api/chat \
+            -H "Content-Type: application/json" \
+            -d '{"prompt":"Diseña una arquitectura de microservicios escalable y segura, comparando alternativas"}')
+          cat response_high.json | python3 -m json.tool
+          echo "HTTP $http_code (high complexity -> should try 3 free providers: cerebras, gemini, groq)"
+
       - name: Verify request_logs table was migrated
         run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'
 
