@@ -25,8 +25,14 @@ PRICING: dict[str, ModelPricing] = {
     # Defaults gratuitos (Groq/Cerebras/Google AI Studio free tier). $0/$0 para
     # que la UI muestre un costo real de $0 en vez de "N/D" con estos modelos.
     "gemini-3.1-flash-lite": ModelPricing(0.0, 0.0),
+    # "llama-3.3-70b-versatile" quedo en el free tier de Groq hasta que Groq lo
+    # movio a Enterprise-only (17 jun 2026); se deja el precio $0 por si se
+    # reactiva a mano con otra cuenta, pero ya no es el default de GROQ_MODEL.
     "llama-3.3-70b-versatile": ModelPricing(0.0, 0.0),
     "gpt-oss-120b": ModelPricing(0.0, 0.0),
+    # Mismo modelo open-weight que "gpt-oss-120b", pero con el prefijo que usa
+    # Groq en su catalogo (GROQ_MODEL, tras la deprecacion de Llama 3.3 70B).
+    "openai/gpt-oss-120b": ModelPricing(0.0, 0.0),
     # NVIDIA NIM (build.nvidia.com): tier de desarrollador gratuito.
     "meta/llama-3.1-70b-instruct": ModelPricing(0.0, 0.0),
 }

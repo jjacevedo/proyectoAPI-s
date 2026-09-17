@@ -10,6 +10,10 @@ def test_default_settings_prefer_free_providers():
     assert settings.synthesizer_provider == "cerebras"
     assert settings.provider_priority_list == ["cerebras", "gemini", "groq", "nvidia", "openai"]
     assert settings.gemini_model == "gemini-3.1-flash-lite"
+    # llama-3.3-70b-versatile paso a ser Enterprise-only en Groq (17 jun 2026,
+    # confirmado con un 404 model_not_found real) -- el default actual es el
+    # que Groq recomienda como reemplazo.
+    assert settings.groq_model == "openai/gpt-oss-120b"
 
 
 def test_build_providers_includes_only_configured_free_providers():

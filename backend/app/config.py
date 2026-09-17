@@ -21,9 +21,13 @@ class Settings(BaseSettings):
     # se siga llamando groq_api_key/GROQ_API_KEY para quien lea el codigo,
     # pero lea la variable de entorno real ROQ_API_KEY.
     groq_api_key: str | None = Field(default=None, validation_alias="ROQ_API_KEY")
-    # Verificar en console.groq.com antes de depender de este ID en produccion:
-    # los nombres de modelo de Groq cambian con el tiempo.
-    groq_model: str = "llama-3.3-70b-versatile"
+    # "llama-3.3-70b-versatile" fue el default original, pero Groq lo movio a
+    # tier Enterprise (ya no responde con una key de developer/free) el 17 de
+    # junio de 2026 -- confirmado con un 404 model_not_found real en produccion.
+    # Groq recomienda migrar a "openai/gpt-oss-120b". Verificar en
+    # console.groq.com/docs/models antes de depender de este nuevo default:
+    # los nombres de modelo de Groq cambian con frecuencia.
+    groq_model: str = "openai/gpt-oss-120b"
     cerebras_api_key: str | None = None
     cerebras_model: str = "gpt-oss-120b"
     nvidia_api_key: str | None = None
