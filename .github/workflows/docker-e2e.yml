@@ -1,0 +1,76 @@
+name: Docker Compose E2E
+
+on:
+  push:
+    paths:
+      - 'docker-compose.yml'
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/docker-e2e.yml'
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/docker-e2e.yml'
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write .env
+        run: |
+          cat > .env <<EOF
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          POSTGRES_DB=multillm
+          POSTGRES_USER=multillm
+          POSTGRES_PASSWORD=multillm
+          DATABASE_URL=postgresql+asyncpg://multillm:multillm@postgres:5432/multillm
+          NEXT_PUBLIC_API_URL=http://localhost:8000
+          EOF
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start stack
+        run: docker compose up -d
+
+      - name: Wait for backend to become healthy
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q backend)" 2>/dev/null || echo starting)
+            echo "backend health: $status"
+            if [ "$status" = "healthy" ]; then exit 0; fi
+            sleep 3
+          done
+          echo "backend never became healthy"
+          docker compose logs
+          exit 1
+
+      - name: Smoke test GET /health
+        run: curl -sf http://localhost:8000/health
+
+      - name: Smoke test POST /api/chat
+        run: |
+          curl -sS -w "\nHTTP %{http_code}\n" -X POST http://localhost:8000/api/chat \
+            -H "Content-Type: application/json" \
+            -d '{"prompt":"¿Qué es una API?"}'
+
+      - name: Verify request_logs table was migrated
+        run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'
+
+      - name: Smoke test frontend
+        run: curl -sf http://localhost:3000 > /dev/null
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
