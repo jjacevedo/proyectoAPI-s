@@ -21,9 +21,17 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     database_url: str = "postgresql+asyncpg://multillm:multillm@postgres:5432/multillm"
 
+    # Orden preferido para el router al elegir un subconjunto de providers
+    # (de menor a mayor costo por millon de tokens segun pricing.py).
+    provider_priority: str = "openai,gemini,anthropic"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def provider_priority_list(self) -> list[str]:
+        return [name.strip() for name in self.provider_priority.split(",") if name.strip()]
 
 
 @lru_cache

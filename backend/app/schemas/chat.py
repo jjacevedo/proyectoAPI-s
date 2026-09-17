@@ -22,3 +22,5 @@ class ChatResponse(BaseModel):
     total_tokens: int
     total_cost_estimated_usd: float | None
     latency_ms: float
+    complexity: str
+    routing_reason: str

@@ -15,4 +15,6 @@ export type ChatResponse = {
   total_tokens: number;
   total_cost_estimated_usd: number | null;
   latency_ms: number;
+  complexity: string;
+  routing_reason: string;
 };

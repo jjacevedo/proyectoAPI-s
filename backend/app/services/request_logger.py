@@ -15,6 +15,7 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
         tokens=sum(response.tokens for response in result.responses),
         cost_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
+        complexity=result.routing.complexity.value,
     )
     session.add(log)
     await session.commit()

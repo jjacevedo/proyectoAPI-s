@@ -49,4 +49,6 @@ async def chat(
         total_tokens=sum(item.tokens for item in response_models),
         total_cost_estimated_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
+        complexity=result.routing.complexity.value,
+        routing_reason=result.routing.reason,
     )

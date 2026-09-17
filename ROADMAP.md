@@ -18,12 +18,12 @@ Implementada en este scaffold:
 
 ## Fase 2 — Router inteligente y deliberación
 
-- Clasificación de tareas.
-- Selección dinámica de modelos.
-- `critique()` real y crítica cruzada.
-- Detección de desacuerdos.
-- Múltiples rondas de deliberación.
-- Rate limiting y controles de presupuesto más avanzados.
+- [x] Clasificación de tareas (`TaskRouter`, heurística por palabras clave y longitud).
+- [x] Selección dinámica de modelos (1/2/3 según complejidad, orden configurable por costo).
+- [ ] `critique()` real y crítica cruzada.
+- [ ] Detección de desacuerdos.
+- [ ] Múltiples rondas de deliberación.
+- [ ] Rate limiting y controles de presupuesto más avanzados.
 
 ## Fase 3 — Verificación externa
 

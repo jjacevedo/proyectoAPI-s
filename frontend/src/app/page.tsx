@@ -41,6 +41,9 @@ export default function Home() {
           <div className="card meta">
             Tokens: {response.total_tokens} · Costo estimado: {response.total_cost_estimated_usd == null ? 'N/D' : `$${response.total_cost_estimated_usd.toFixed(6)}`} · Latencia total: {response.latency_ms.toFixed(0)} ms
           </div>
+          <div className="card meta">
+            Complejidad detectada: {response.complexity} ({response.routing_reason})
+          </div>
         </>
       )}
     </main>

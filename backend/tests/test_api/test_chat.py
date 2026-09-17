@@ -4,13 +4,15 @@ import pytest
 
 from app.api.routes.chat import get_orchestrator
 from app.core.orchestrator import DeliberationResult
+from app.core.router import RoutingDecision, TaskComplexity
 from app.providers.base import LLMResponse
 
 
 class FakeOrchestrator:
     async def run(self, prompt: str):
         response = LLMResponse(provider="openai", model="test", content="final", tokens=4)
-        return DeliberationResult("final", [response], 12.5)
+        routing = RoutingDecision(complexity=TaskComplexity.LOW, provider_count=1, reason="test")
+        return DeliberationResult("final", [response], 12.5, routing)
 
 
 @pytest.mark.asyncio
