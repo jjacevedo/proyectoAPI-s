@@ -40,6 +40,14 @@ class FakeOrchestratorWithDisagreement:
         return DeliberationResult("final", [response], 12.5, routing, disagreement=disagreement)
 
 
+class FakeOrchestratorWithRevisions:
+    async def run(self, prompt: str):
+        response = LLMResponse(provider="openai", model="test", content="final", tokens=4)
+        routing = RoutingDecision(complexity=TaskComplexity.HIGH, provider_count=2, reason="test")
+        revision = LLMResponse(provider="openai", model="test", content="revised final", tokens=5)
+        return DeliberationResult("final", [response], 12.5, routing, revisions=[revision])
+
+
 @pytest.mark.asyncio
 async def test_chat_endpoint(client):
     from app.main import app
@@ -67,6 +75,7 @@ async def test_chat_endpoint(client):
     assert data["final_answer"] == "final"
     assert data["responses"][0]["provider"] == "openai"
     assert data["critiques"] == []
+    assert data["revisions"] == []
     assert data["disagreement_level"] == "not_applicable"
 
 
@@ -125,3 +134,31 @@ async def test_chat_endpoint_exposes_disagreement(client):
     assert data["disagreement_level"] == "disagreement"
     assert data["disagreement_reason"] == "contradiction found"
     assert data["disagreement_evidence"] == ["candidate 2 contradice al candidate 1"]
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_exposes_revisions(client):
+    from app.main import app
+
+    app.dependency_overrides[get_orchestrator] = lambda: FakeOrchestratorWithRevisions()
+    from app.api.deps import get_db
+
+    class FakeSession:
+        async def commit(self):
+            pass
+
+        def add(self, item):
+            pass
+
+    async def fake_db():
+        yield FakeSession()
+
+    app.dependency_overrides[get_db] = fake_db
+    response = await client.post("/api/chat", json={"prompt": "hello"})
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["revisions"]) == 1
+    assert data["revisions"][0]["content"] == "revised final"
+    assert data["total_tokens"] == 4 + 5

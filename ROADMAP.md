@@ -22,7 +22,7 @@ Implementada en este scaffold:
 - [x] Selección dinámica de modelos (1/2/3 según complejidad, orden configurable por costo).
 - [x] Crítica cruzada (`CrossCritic`, cada provider exitoso revisa a los demás; se salta con <2 exitosos o `enable_cross_critique=false`).
 - [x] Detección de desacuerdos (`DisagreementDetector`, deriva la señal del contenido de las críticas; alimenta al `Synthesizer` cuando detecta contradicción).
-- [ ] Múltiples rondas de deliberación.
+- [x] Múltiples rondas de deliberación (`Reevaluator`: cada provider revisa su propia respuesta con las críticas antes de sintetizar; 2 rondas de generación, no un bucle abierto).
 - [ ] Rate limiting y controles de presupuesto más avanzados.
 
 ## Fase 3 — Verificación externa

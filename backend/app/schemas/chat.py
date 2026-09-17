@@ -30,6 +30,7 @@ class ChatResponse(BaseModel):
     final_answer: str
     responses: list[ProviderResponse]
     critiques: list[CritiqueResponse]
+    revisions: list[ProviderResponse]
     models_used: list[str]
     total_tokens: int
     total_cost_estimated_usd: float | None

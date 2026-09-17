@@ -54,14 +54,30 @@ async def chat(
         )
         for critique in result.critiques
     ]
+    revision_models = [
+        ProviderResponse(
+            provider=revision.provider,
+            model=revision.model,
+            content=revision.content,
+            tokens=revision.tokens,
+            latency_ms=revision.latency_ms,
+            cost_estimated_usd=revision.cost_estimated_usd,
+            error=revision.error,
+        )
+        for revision in result.revisions
+    ]
     costs = [item.cost_estimated_usd for item in response_models if item.cost_estimated_usd is not None]
     costs += [item.cost_estimated_usd for item in critique_models if item.cost_estimated_usd is not None]
+    costs += [item.cost_estimated_usd for item in revision_models if item.cost_estimated_usd is not None]
     return ChatResponse(
         final_answer=result.final_answer,
         responses=response_models,
         critiques=critique_models,
+        revisions=revision_models,
         models_used=[f"{item.provider}/{item.model}" for item in response_models if item.error is None],
-        total_tokens=sum(item.tokens for item in response_models) + sum(item.tokens for item in critique_models),
+        total_tokens=sum(item.tokens for item in response_models)
+        + sum(item.tokens for item in critique_models)
+        + sum(item.tokens for item in revision_models),
         total_cost_estimated_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,

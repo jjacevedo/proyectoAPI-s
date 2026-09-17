@@ -23,6 +23,7 @@ export type ChatResponse = {
   final_answer: string;
   responses: ProviderResponse[];
   critiques: CritiqueResponse[];
+  revisions: ProviderResponse[];
   models_used: string[];
   total_tokens: number;
   total_cost_estimated_usd: number | null;

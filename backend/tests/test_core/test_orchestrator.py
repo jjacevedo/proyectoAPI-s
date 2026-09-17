@@ -6,6 +6,7 @@ from app.config import Settings
 from app.core.critic import CrossCritic
 from app.core.disagreement import DisagreementLevel
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
+from app.core.reevaluator import Reevaluator
 from app.core.router import TaskRouter
 from app.providers.base import LLMProvider, LLMResponse
 
@@ -36,11 +37,26 @@ def settings():
 
 @pytest.fixture
 def settings_with_critique():
+    """Reevaluation is disabled here: these tests exercise the critique round
+    in isolation from the reevaluation round added afterwards. See
+    `settings_with_reevaluation` for the reevaluation-specific tests."""
     return Settings(
         synthesizer_provider="openai",
         max_tokens_per_request=100,
         provider_timeout_seconds=1,
         enable_cross_critique=True,
+        enable_reevaluation_round=False,
+    )
+
+
+@pytest.fixture
+def settings_with_reevaluation():
+    return Settings(
+        synthesizer_provider="openai",
+        max_tokens_per_request=100,
+        provider_timeout_seconds=1,
+        enable_cross_critique=True,
+        enable_reevaluation_round=True,
     )
 
 
@@ -175,6 +191,7 @@ async def test_orchestrator_skips_critique_with_single_success(settings_with_cri
     assert result.critiques == []
     assert critic.run.await_count == 0
     assert result.disagreement.level == DisagreementLevel.NOT_APPLICABLE
+    assert result.revisions == []
 
 
 @pytest.mark.asyncio
@@ -199,6 +216,8 @@ async def test_orchestrator_runs_one_critique_per_successful_provider(settings_w
     # The FakeProvider critiques here just echo fixed content with no
     # disagreement keywords, so the detector should report consensus.
     assert result.disagreement.level == DisagreementLevel.CONSENSUS
+    # Reevaluation is disabled in this fixture (see settings_with_critique).
+    assert result.revisions == []
 
 
 @pytest.mark.asyncio
@@ -271,3 +290,71 @@ async def test_orchestrator_enable_cross_critique_false_skips_critique_round(set
     assert result.critiques == []
     assert critic.run.await_count == 0
     assert result.disagreement.level == DisagreementLevel.NOT_APPLICABLE
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_runs_reevaluation_after_successful_critique(settings_with_reevaluation):
+    providers = {
+        name: FakeProvider(name, LLMResponse(provider=name, model=f"{name}-model", content=name))
+        for name in ["openai", "anthropic", "gemini"]
+    }
+    reevaluator = Reevaluator(max_tokens=100)
+    reevaluator.run = AsyncMock(wraps=reevaluator.run)
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_reevaluation, router=_always_high_router(), reevaluator=reevaluator
+    )
+    result = await orchestrator.run("question")
+
+    assert len(result.revisions) == 3
+    assert reevaluator.run.await_count == 3
+    assert all(revision.succeeded for revision in result.revisions)
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_skips_reevaluation_when_disabled(settings_with_critique):
+    providers = {
+        name: FakeProvider(name, LLMResponse(provider=name, model=f"{name}-model", content=name))
+        for name in ["openai", "anthropic", "gemini"]
+    }
+    reevaluator = Reevaluator(max_tokens=100)
+    reevaluator.run = AsyncMock(wraps=reevaluator.run)
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_critique, router=_always_high_router(), reevaluator=reevaluator
+    )
+    result = await orchestrator.run("question")
+
+    assert result.revisions == []
+    assert reevaluator.run.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_reevaluation_failure_falls_back_to_original_response(settings_with_reevaluation):
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="original-a")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="original-b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="original-c")),
+    }
+
+    real_reevaluator = Reevaluator(max_tokens=100)
+
+    async def flaky_run(provider, original_prompt, own_response, critiques):
+        if own_response.provider == "gemini":
+            raise RuntimeError("reevaluation boom")
+        return await real_reevaluator.run(provider, original_prompt, own_response, critiques)
+
+    reevaluator = Reevaluator(max_tokens=100)
+    reevaluator.run = AsyncMock(side_effect=flaky_run)
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_reevaluation, router=_always_high_router(), reevaluator=reevaluator
+    )
+    result = await orchestrator.run("question")
+
+    assert len(result.revisions) == 3
+    failed = [r for r in result.revisions if not r.succeeded]
+    assert len(failed) == 1
+    assert failed[0].provider == "gemini"
+    assert "reevaluation boom" in failed[0].error
+    # The final answer must still be produced: gemini's ORIGINAL response
+    # (not a revision) should have been used as a synthesis candidate.
+    assert result.final_answer

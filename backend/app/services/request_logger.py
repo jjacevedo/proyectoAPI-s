@@ -12,6 +12,11 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
         for critique in result.critiques
         if critique.response.cost_estimated_usd is not None
     ]
+    costs += [
+        revision.cost_estimated_usd
+        for revision in result.revisions
+        if revision.cost_estimated_usd is not None
+    ]
     log = RequestLog(
         prompt=prompt,
         models_used=[f"{response.provider}/{response.model}" for response in successful],
@@ -23,9 +28,11 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
             }
             for critique in result.critiques
         ],
+        revisions=[revision.model_dump(exclude={"raw"}) for revision in result.revisions],
         final_answer=result.final_answer,
         tokens=sum(response.tokens for response in result.responses)
-        + sum(critique.response.tokens for critique in result.critiques),
+        + sum(critique.response.tokens for critique in result.critiques)
+        + sum(revision.tokens for revision in result.revisions),
         cost_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,

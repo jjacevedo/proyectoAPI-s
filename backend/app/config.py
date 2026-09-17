@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     synthesizer_provider: str = "openai"
     enable_cross_critique: bool = True
+    enable_reevaluation_round: bool = True
     provider_timeout_seconds: float = Field(default=45, gt=0, le=300)
     max_tokens_per_request: int = Field(default=2048, gt=0, le=128000)
     max_prompt_chars: int = Field(default=12000, gt=100, le=100000)

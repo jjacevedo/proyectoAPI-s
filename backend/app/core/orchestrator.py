@@ -4,6 +4,7 @@ import time
 from app.config import Settings
 from app.core.critic import CrossCritic, Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementDetector, DisagreementLevel
+from app.core.reevaluator import Reevaluator
 from app.core.router import RoutingDecision, TaskRouter
 from app.core.synthesizer import Synthesizer
 from app.providers.base import LLMProvider, LLMResponse
@@ -30,6 +31,7 @@ class DeliberationResult:
         routing: RoutingDecision,
         critiques: list[Critique] | None = None,
         disagreement: DisagreementAssessment | None = None,
+        revisions: list[LLMResponse] | None = None,
     ) -> None:
         self.final_answer = final_answer
         self.responses = responses
@@ -37,6 +39,7 @@ class DeliberationResult:
         self.routing = routing
         self.critiques = critiques or []
         self.disagreement = disagreement or _default_disagreement_assessment()
+        self.revisions = revisions or []
 
 
 class DeliberationOrchestrator:
@@ -47,12 +50,14 @@ class DeliberationOrchestrator:
         router: TaskRouter | None = None,
         critic: CrossCritic | None = None,
         disagreement_detector: DisagreementDetector | None = None,
+        reevaluator: Reevaluator | None = None,
     ) -> None:
         self.providers = providers
         self.settings = settings
         self.router = router or TaskRouter()
         self.critic = critic or CrossCritic(settings.max_tokens_per_request)
         self.disagreement_detector = disagreement_detector or DisagreementDetector()
+        self.reevaluator = reevaluator or Reevaluator(settings.max_tokens_per_request)
 
     async def _call_provider(self, provider: LLMProvider, prompt: str) -> LLMResponse:
         try:
@@ -89,6 +94,25 @@ class DeliberationOrchestrator:
                 reviewed_providers=[f"{r.provider}/{r.model}" for r in other_responses],
             )
 
+    async def _run_reevaluation(
+        self,
+        provider: LLMProvider,
+        original_prompt: str,
+        own_response: LLMResponse,
+        critiques: list[Critique],
+    ) -> LLMResponse:
+        try:
+            return await asyncio.wait_for(
+                self.reevaluator.run(provider, original_prompt, own_response, critiques),
+                timeout=self.settings.provider_timeout_seconds,
+            )
+        except Exception as exc:
+            return LLMResponse(
+                provider=provider.provider_name,
+                model=provider.model,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+
     async def run(self, prompt: str) -> DeliberationResult:
         if not self.providers:
             raise AllProvidersFailedError("No LLM providers are configured")
@@ -120,9 +144,10 @@ class DeliberationOrchestrator:
         if not successful:
             raise AllProvidersFailedError("All configured LLM providers failed")
 
+        responses_by_provider_name = {response.provider: response for response in successful}
+
         critiques: list[Critique] = []
         if self.settings.enable_cross_critique and len(successful) >= 2:
-            responses_by_provider_name = {response.provider: response for response in successful}
             critique_tasks = []
             critique_providers = []
             for name, own_response in responses_by_provider_name.items():
@@ -155,6 +180,42 @@ class DeliberationOrchestrator:
 
         disagreement = self.disagreement_detector.assess(critiques)
 
+        revisions: list[LLMResponse] = []
+        critiques_available = [critique for critique in critiques if critique.succeeded]
+        if self.settings.enable_reevaluation_round and len(successful) >= 2 and critiques_available:
+            reevaluation_tasks = []
+            reevaluation_providers = []
+            for name, own_response in responses_by_provider_name.items():
+                provider = active_providers.get(name)
+                if provider is None:
+                    continue
+                reevaluation_providers.append((name, provider))
+                reevaluation_tasks.append(
+                    self._run_reevaluation(provider, prompt, own_response, critiques)
+                )
+
+            reevaluation_results = await asyncio.gather(*reevaluation_tasks, return_exceptions=True)
+            revised_by_name: dict[str, LLMResponse] = {}
+            for (name, provider), result in zip(reevaluation_providers, reevaluation_results, strict=True):
+                if isinstance(result, LLMResponse):
+                    revision = result
+                else:
+                    revision = LLMResponse(
+                        provider=provider.provider_name,
+                        model=provider.model,
+                        error=f"{type(result).__name__}: {result}",
+                    )
+                revisions.append(revision)
+                if revision.succeeded:
+                    revised_by_name[name] = revision
+
+            # Use the revised answer where available; fall back to the
+            # original round-1 answer for any provider whose revision failed.
+            successful = [
+                revised_by_name.get(name, response)
+                for name, response in responses_by_provider_name.items()
+            ]
+
         synthesizer_provider = active_providers.get(self.settings.synthesizer_provider)
         if synthesizer_provider is None:
             synthesizer_provider = next(iter(active_providers.values()))
@@ -180,4 +241,5 @@ class DeliberationOrchestrator:
             routing=decision,
             critiques=critiques,
             disagreement=disagreement,
+            revisions=revisions,
         )

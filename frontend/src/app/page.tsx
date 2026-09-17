@@ -7,6 +7,7 @@ import { DisagreementNotice } from '@/components/DisagreementNotice';
 import { FinalAnswer } from '@/components/FinalAnswer';
 import { IndividualResponsesAccordion } from '@/components/IndividualResponsesAccordion';
 import { ModelsParticipated } from '@/components/ModelsParticipated';
+import { RevisionsAccordion } from '@/components/RevisionsAccordion';
 import { sendChat } from '@/lib/api';
 import type { ChatResponse } from '@/types/chat';
 
@@ -41,6 +42,7 @@ export default function Home() {
           <ModelsParticipated responses={response.responses} />
           <IndividualResponsesAccordion responses={response.responses} />
           <CritiquesAccordion critiques={response.critiques} />
+          <RevisionsAccordion revisions={response.revisions} />
           <div className="card meta">
             Tokens: {response.total_tokens} · Costo estimado: {response.total_cost_estimated_usd == null ? 'N/D' : `$${response.total_cost_estimated_usd.toFixed(6)}`} · Latencia total: {response.latency_ms.toFixed(0)} ms
           </div>

@@ -55,6 +55,13 @@
                               |
                               v
                     +------------------+
+                    |   Reevaluator    |
+                    +--------+---------+
+                              |
+      (cada exitoso revisa su PROPIA respuesta con las criticas)
+                              |
+                              v
+                    +------------------+
                     |    Synthesizer   |
                     +--------+---------+
                              |
@@ -111,12 +118,20 @@ Con N respuestas exitosas se hacen N llamadas de crítica (nunca N×(N-1)): cada
 
 Decisión de diseño deliberada: en vez de comparar el texto de las respuestas originales entre sí (lo que el documento de diseño desaconseja como método principal — "no depender de coincidencia textual"), la detección escanea el **contenido de las críticas ya generadas en la ronda anterior**. Cada crítica es, por construcción, un análisis semántico hecho por un LLM que ya identificó explícitamente contradicciones y errores; escanear ese texto por palabras clave (mismo estilo heurístico que `TaskRouter`) es más fiel a "considerar el significado" que comparar las respuestas crudas, y no cuesta ninguna llamada adicional — reutiliza una llamada que el sistema ya paga en la crítica cruzada. La contrapartida: sin ronda de crítica no hay una segunda vía de detección por similitud de texto en esta iteración; queda como `not_applicable`.
 
-Cuando se detecta `disagreement`, el `Synthesizer` recibe la evidencia y se le pide resolverla explícitamente en la respuesta final (indicar qué postura es más probable o reconocer la incertidumbre) en vez de promediar o ignorar la discrepancia. El resultado (`disagreement_level`, `disagreement_reason`, `disagreement_evidence`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia. Este componente **detecta y reporta**, no dispara por sí mismo una nueva ronda de generación ni verificación externa — eso corresponde a fases posteriores (rondas múltiples, herramientas de verificación).
+Cuando se detecta `disagreement`, el `Synthesizer` recibe la evidencia y se le pide resolverla explícitamente en la respuesta final (indicar qué postura es más probable o reconocer la incertidumbre) en vez de promediar o ignorar la discrepancia. El resultado (`disagreement_level`, `disagreement_reason`, `disagreement_evidence`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia. Este componente **detecta y reporta**, no dispara por sí mismo una nueva ronda de generación ni verificación externa.
+
+## Múltiples rondas de deliberación (v2)
+
+Sección 17 ("Paso 4 — Reevaluación") del documento de diseño: los modelos revisan sus propuestas a partir de las críticas antes de la síntesis final. `Reevaluator` (`backend/app/core/reevaluator.py`) implementa exactamente ese paso, con el mismo patrón que `Synthesizer`/`CrossCritic` (arma un prompt, llama a `provider.generate()`).
+
+Si `settings.enable_reevaluation_round` está activo y la ronda de crítica produjo al menos una crítica exitosa, cada provider que respondió con éxito recibe su propia respuesta previa más TODAS las críticas (que hablan de todos los candidatos, incluida la suya) y produce una respuesta mejorada. El sistema es deliberadamente de **2 rondas de generación** (independiente + reevaluación), no un bucle abierto de N rondas: es exactamente lo que describe el ejemplo del documento (sección 17, "Paso 4" único antes de "Paso 5 — Síntesis"), y mantiene el costo acotado y predecible.
+
+La revisión de cada provider **reemplaza** su respuesta en el conjunto que se usa para la síntesis final; si la reevaluación de un provider falla (timeout o excepción), se conserva su respuesta original de la ronda independiente en su lugar — misma degradación elegante que el resto del sistema. La crítica y la detección de desacuerdos usadas por la síntesis siguen siendo las de ANTES de la reevaluación (igual que en el ejemplo del documento), no se vuelve a criticar el resultado revisado. Las revisiones quedan expuestas en `ChatResponse.revisions` y persistidas en `request_logs.revisions` (JSONB), con su costo/tokens sumados al total.
 
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
-- **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); pendiente múltiples rondas.
+- **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); múltiples rondas de deliberación (implementadas).
 - **v3:** herramientas externas pueden consumir los resultados antes de sintetizar.
 - **v4:** los logs existentes proporcionan la base para comparar costo, latencia y calidad.
 
