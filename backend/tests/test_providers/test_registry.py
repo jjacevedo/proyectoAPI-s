@@ -1,13 +1,14 @@
 from app.config import Settings
 from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.groq_provider import GroqProvider
+from app.providers.nvidia_provider import NvidiaProvider
 from app.providers.registry import build_providers
 
 
 def test_default_settings_prefer_free_providers():
     settings = Settings(_env_file=None)
     assert settings.synthesizer_provider == "cerebras"
-    assert settings.provider_priority_list == ["cerebras", "gemini", "groq", "openai"]
+    assert settings.provider_priority_list == ["cerebras", "gemini", "groq", "nvidia", "openai"]
     assert settings.gemini_model == "gemini-3.1-flash-lite"
 
 
@@ -16,12 +17,14 @@ def test_build_providers_includes_only_configured_free_providers():
         _env_file=None,
         groq_api_key="groq-key",
         cerebras_api_key="cerebras-key",
+        nvidia_api_key="nvidia-key",
     )
     providers = build_providers(settings)
 
-    assert set(providers.keys()) == {"groq", "cerebras"}
+    assert set(providers.keys()) == {"groq", "cerebras", "nvidia"}
     assert isinstance(providers["groq"], GroqProvider)
     assert isinstance(providers["cerebras"], CerebrasProvider)
+    assert isinstance(providers["nvidia"], NvidiaProvider)
 
 
 def test_build_providers_keeps_openai_and_anthropic_available_when_keyed():

@@ -4,6 +4,7 @@ import pytest
 
 from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.groq_provider import GroqProvider
+from app.providers.nvidia_provider import NvidiaProvider
 from app.providers.openai_compatible_provider import OpenAICompatibleProvider
 
 
@@ -62,13 +63,45 @@ async def test_cerebras_provider_degrades_on_exception():
     assert "boom" in (result.error or "")
 
 
-def test_groq_and_cerebras_share_implementation_but_have_distinct_identity():
+@pytest.mark.asyncio
+async def test_nvidia_provider_parses_response():
+    provider = NvidiaProvider("key", "meta/llama-3.1-70b-instruct")
+    message = MagicMock(content="hello")
+    choice = MagicMock(message=message)
+    usage = MagicMock(prompt_tokens=2, completion_tokens=4)
+    response = MagicMock(choices=[choice], usage=usage)
+    provider.client.chat.completions.create = AsyncMock(return_value=response)
+
+    result = await provider.generate("hi", max_tokens=20)
+
+    assert result.provider == "nvidia"
+    assert result.content == "hello"
+    assert result.tokens == 6
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_nvidia_provider_degrades_on_exception():
+    provider = NvidiaProvider("key", "meta/llama-3.1-70b-instruct")
+    provider.client.chat.completions.create = AsyncMock(side_effect=RuntimeError("boom"))
+
+    result = await provider.generate("hi", max_tokens=20)
+
+    assert result.content is None
+    assert "boom" in (result.error or "")
+
+
+def test_groq_cerebras_nvidia_share_implementation_but_have_distinct_identity():
     groq = GroqProvider("key", "model-a")
     cerebras = CerebrasProvider("key", "model-b")
+    nvidia = NvidiaProvider("key", "model-c")
 
     assert isinstance(groq, OpenAICompatibleProvider)
     assert isinstance(cerebras, OpenAICompatibleProvider)
+    assert isinstance(nvidia, OpenAICompatibleProvider)
     assert groq.provider_name == "groq"
     assert cerebras.provider_name == "cerebras"
+    assert nvidia.provider_name == "nvidia"
     assert str(groq.client.base_url).startswith("https://api.groq.com")
     assert str(cerebras.client.base_url).startswith("https://api.cerebras.ai")
+    assert str(nvidia.client.base_url).startswith("https://integrate.api.nvidia.com")

@@ -2,7 +2,7 @@
 
 Sistema Multi-LLM de Deliberación y Síntesis. MVP con FastAPI + Next.js que consulta varios LLMs en paralelo y sintetiza una respuesta final.
 
-Por defecto usa proveedores **gratuitos** (Cerebras, Google AI Studio/Gemini, Groq) para esta fase temprana del proyecto, más OpenAI activo como respaldo (de pago, pero ya verificado funcionando). Anthropic queda disponible pero inactivo por defecto (ver [ROADMAP.md](ROADMAP.md) e issue #17).
+Por defecto usa proveedores **gratuitos** (Cerebras, Google AI Studio/Gemini, Groq, NVIDIA NIM) para esta fase temprana del proyecto, más OpenAI activo como respaldo (de pago, pero ya verificado funcionando). Anthropic queda disponible pero inactivo por defecto (ver [ROADMAP.md](ROADMAP.md) e issue #17).
 
 ## Arquitectura MVP
 
@@ -11,6 +11,7 @@ Usuario -> Next.js -> FastAPI -> Orchestrator
                                   |-> Cerebras (gratis)
                                   |-> Gemini (gratis)
                                   |-> Groq (gratis)
+                                  |-> NVIDIA NIM (gratis)
                                   |-> OpenAI (de pago, respaldo)
                                   `-> Synthesizer -> respuesta final
                                            |
@@ -22,7 +23,8 @@ El MVP no implementa todavía router inteligente, crítica cruzada ni verificaci
 ## Requisitos
 
 - Docker y Docker Compose
-- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)), Cerebras ([cloud.cerebras.ai](https://cloud.cerebras.ai)) y/o Google AI Studio (Gemini). Ninguno debería requerir tarjeta de crédito, pero confírmalo en tu propio registro.
+- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)), Cerebras ([cloud.cerebras.ai](https://cloud.cerebras.ai)), NVIDIA NIM ([build.nvidia.com](https://build.nvidia.com)) y/o Google AI Studio (Gemini). Ninguno debería requerir tarjeta de crédito, pero confírmalo en tu propio registro.
+- **Nota sobre la variable de Groq:** por decisión explícita del dueño del repo, la variable de entorno/secret se llama `ROQ_API_KEY` (sin la primera "G"), no `GROQ_API_KEY`. `app/config.py` lee ese nombre exacto vía alias — no es un error de este README.
 - OpenAI (de pago) y Anthropic (de pago) siguen soportados — agrega su API key en `.env` para reactivarlos.
 
 ## Quickstart

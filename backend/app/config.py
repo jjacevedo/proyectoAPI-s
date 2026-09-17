@@ -5,7 +5,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", populate_by_name=True
+    )
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-luna"
@@ -13,12 +15,21 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.1-flash-lite"
-    groq_api_key: str | None = None
+    # El secret real en GitHub Actions/entornos de este proyecto se llama
+    # ROQ_API_KEY (typo de nacimiento, dejado asi a proposito por el dueño
+    # del repo en vez de renombrarlo) -- el alias hace que el campo interno
+    # se siga llamando groq_api_key/GROQ_API_KEY para quien lea el codigo,
+    # pero lea la variable de entorno real ROQ_API_KEY.
+    groq_api_key: str | None = Field(default=None, validation_alias="ROQ_API_KEY")
     # Verificar en console.groq.com antes de depender de este ID en produccion:
     # los nombres de modelo de Groq cambian con el tiempo.
     groq_model: str = "llama-3.3-70b-versatile"
     cerebras_api_key: str | None = None
     cerebras_model: str = "gpt-oss-120b"
+    nvidia_api_key: str | None = None
+    # build.nvidia.com (NIM) -- verificar el ID de modelo vigente en la
+    # consola antes de depender de este default en produccion.
+    nvidia_model: str = "meta/llama-3.1-70b-instruct"
 
     synthesizer_provider: str = "cerebras"
     enable_cross_critique: bool = True
@@ -63,12 +74,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://multillm:multillm@postgres:5432/multillm"
 
     # Orden preferido para el router al elegir un subconjunto de providers.
-    # cerebras/gemini/groq son gratuitos por defecto; openai queda al final
-    # como respaldo (solo se usa si el router necesita mas providers de los
-    # que hay gratis disponibles, o si a alguno le falta la api key). anthropic
-    # no esta en la lista por defecto (issue #17: se quedo sin credito) pero
-    # sigue disponible si se le agrega una api key y se reintroduce aqui.
-    provider_priority: str = "cerebras,gemini,groq,openai"
+    # cerebras/gemini/groq/nvidia son gratuitos por defecto; openai queda al
+    # final como respaldo (solo se usa si el router necesita mas providers de
+    # los que hay gratis disponibles, o si a alguno le falta la api key).
+    # anthropic no esta en la lista por defecto (issue #17: se quedo sin
+    # credito) pero sigue disponible si se le agrega una api key y se
+    # reintroduce aqui.
+    provider_priority: str = "cerebras,gemini,groq,nvidia,openai"
 
     @property
     def cors_origin_list(self) -> list[str]:

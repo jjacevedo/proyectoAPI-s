@@ -27,6 +27,8 @@ PRICING: dict[str, ModelPricing] = {
     "gemini-3.1-flash-lite": ModelPricing(0.0, 0.0),
     "llama-3.3-70b-versatile": ModelPricing(0.0, 0.0),
     "gpt-oss-120b": ModelPricing(0.0, 0.0),
+    # NVIDIA NIM (build.nvidia.com): tier de desarrollador gratuito.
+    "meta/llama-3.1-70b-instruct": ModelPricing(0.0, 0.0),
 }
 
 
