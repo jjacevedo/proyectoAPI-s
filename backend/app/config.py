@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     # providers. Un numero acotado evita que una conversacion larga infle el
     # consumo de tokens sin limite.
     conversation_history_max_messages: int = Field(default=10, gt=0, le=50)
+    # Rate limiting y control de presupuesto (Fase 2 pendiente, cerrado aqui).
+    # Ambos quedan DESACTIVADOS por defecto: es un proyecto de un solo
+    # desarrollador corriendo localmente/en CI, y un limite activo por
+    # defecto podria autobloquear pruebas o el propio desarrollo. Se activan
+    # explicitamente por variable de entorno cuando haya trafico real.
+    enable_rate_limiting: bool = False
+    rate_limit_requests_per_minute: int = Field(default=20, gt=0, le=10000)
+    # Si se define, /api/chat y /api/evaluate devuelven 402 una vez que el
+    # costo estimado ya persistido hoy (UTC, sumando request_logs y
+    # evaluation_logs) alcanza este monto. None = sin limite (por defecto).
+    daily_budget_usd: float | None = Field(default=None, gt=0)
     provider_timeout_seconds: float = Field(default=45, gt=0, le=300)
     max_tokens_per_request: int = Field(default=2048, gt=0, le=128000)
     max_prompt_chars: int = Field(default=12000, gt=100, le=100000)

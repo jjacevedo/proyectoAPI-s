@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.api.rate_limit_deps import enforce_daily_budget, enforce_rate_limit
 from app.config import settings
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
 from app.core.router import TaskComplexity, TaskRouter
@@ -63,7 +64,11 @@ def get_mode_orchestrator_builder():
     return _build_orchestrator_for_mode
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    dependencies=[Depends(enforce_rate_limit), Depends(enforce_daily_budget)],
+)
 async def chat(
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),

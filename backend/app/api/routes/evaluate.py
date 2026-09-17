@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.api.rate_limit_deps import enforce_daily_budget, enforce_rate_limit
 from app.config import settings
 from app.core.evaluator import EvaluationJudge, EvaluationResult, SingleLLMBaseline, extract_verdict
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator, DeliberationResult
@@ -45,7 +46,11 @@ def _deliberation_totals(result: DeliberationResult) -> tuple[int, float | None]
     return total_tokens, sum(costs) if costs else None
 
 
-@router.post("/evaluate", response_model=EvaluateResponse)
+@router.post(
+    "/evaluate",
+    response_model=EvaluateResponse,
+    dependencies=[Depends(enforce_rate_limit), Depends(enforce_daily_budget)],
+)
 async def evaluate(
     request: EvaluateRequest,
     db: AsyncSession = Depends(get_db),

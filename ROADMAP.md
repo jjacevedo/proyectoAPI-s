@@ -23,7 +23,7 @@ Implementada en este scaffold:
 - [x] Crítica cruzada (`CrossCritic`, cada provider exitoso revisa a los demás; se salta con <2 exitosos o `enable_cross_critique=false`).
 - [x] Detección de desacuerdos (`DisagreementDetector`, deriva la señal del contenido de las críticas; alimenta al `Synthesizer` cuando detecta contradicción).
 - [x] Múltiples rondas de deliberación (`Reevaluator`: cada provider revisa su propia respuesta con las críticas antes de sintetizar; 2 rondas de generación, no un bucle abierto).
-- [ ] Rate limiting y controles de presupuesto más avanzados.
+- [x] Rate limiting y controles de presupuesto más avanzados (`RateLimiter` en memoria por IP + presupuesto diario calculado sobre el gasto real ya persistido en `request_logs`/`evaluation_logs`; ambos desactivados por defecto, opt-in vía `ENABLE_RATE_LIMITING`/`DAILY_BUDGET_USD`).
 
 ## Pivote a proveedores gratuitos
 
