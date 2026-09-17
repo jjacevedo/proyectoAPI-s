@@ -40,6 +40,13 @@
                 +-------------+-------------+
                               |
                               v
+                       +------------+
+                       | CrossCritic|
+                       +-----+------+
+                              |
+        (si hay >=2 exitosos: cada uno critica a los demas)
+                              |
+                              v
                     +------------------+
                     |    Synthesizer   |
                     +--------+---------+
@@ -85,10 +92,16 @@ Cada llamada captura errores del SDK y produce un `LLMResponse` con `error`. `as
 
 Esto es deliberadamente una heurística, no un clasificador con IA: mantiene el costo de clasificar cerca de cero y es suficiente para el objetivo del documento de diseño (no gastar 3 modelos en una pregunta simple). Un clasificador más sofisticado (o basado en LLM) puede reemplazar `TaskRouter.classify()` sin tocar el orquestador ni los providers.
 
+## Crítica cruzada (v2)
+
+Si hay al menos 2 respuestas exitosas y `settings.enable_cross_critique` está activo, `DeliberationOrchestrator.run()` lanza una ronda de crítica en paralelo: cada provider que respondió con éxito recibe, vía `CrossCritic` (`backend/app/core/critic.py`), el prompt original y las respuestas de LOS DEMÁS (nunca la propia), y se le pide identificar errores, contradicciones, supuestos, omisiones, ventajas, limitaciones y mejoras — igual que la sección 4.4 del documento de diseño. `CrossCritic` sigue el mismo patrón que `Synthesizer`: no usa el método `critique()` de `LLMProvider` (que sigue siendo un stub sin uso, igual que `analyze()`), construye el prompt de crítica y llama a `provider.generate()`.
+
+Con N respuestas exitosas se hacen N llamadas de crítica (nunca N×(N-1)): cada modelo revisa a todos los demás en una sola llamada. Una crítica que falla (timeout o excepción) no bloquea la síntesis — se registra con `error` y se sigue, igual que el resto del sistema. El `Synthesizer` recibe las críticas exitosas junto con las respuestas originales y las usa para construir la respuesta final, con la misma advertencia de "esto es evidencia, no verdad" que ya aplica a las respuestas de los candidatos. Las críticas quedan expuestas en `ChatResponse.critiques` y persistidas en `request_logs.critiques` (JSONB) por transparencia, y su costo/tokens se suman al total reportado.
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
-- **v2:** router de clasificación y selección dinámica (implementado); pendiente crítica cruzada, detección de desacuerdos y múltiples rondas.
+- **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); pendiente detección de desacuerdos y múltiples rondas.
 - **v3:** herramientas externas pueden consumir los resultados antes de sintetizar.
 - **v4:** los logs existentes proporcionan la base para comparar costo, latencia y calidad.
 

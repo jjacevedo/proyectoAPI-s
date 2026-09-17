@@ -14,6 +14,7 @@ class RequestLog(Base):
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     models_used: Mapped[list] = mapped_column(JSONB, nullable=False)
     individual_responses: Mapped[list] = mapped_column(JSONB, nullable=False)
+    critiques: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     final_answer: Mapped[str] = mapped_column(Text, nullable=False)
     tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)

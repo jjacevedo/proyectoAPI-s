@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChatForm } from '@/components/ChatForm';
+import { CritiquesAccordion } from '@/components/CritiquesAccordion';
 import { FinalAnswer } from '@/components/FinalAnswer';
 import { IndividualResponsesAccordion } from '@/components/IndividualResponsesAccordion';
 import { ModelsParticipated } from '@/components/ModelsParticipated';
@@ -38,6 +39,7 @@ export default function Home() {
           <FinalAnswer answer={response.final_answer} />
           <ModelsParticipated responses={response.responses} />
           <IndividualResponsesAccordion responses={response.responses} />
+          <CritiquesAccordion critiques={response.critiques} />
           <div className="card meta">
             Tokens: {response.total_tokens} · Costo estimado: {response.total_cost_estimated_usd == null ? 'N/D' : `$${response.total_cost_estimated_usd.toFixed(6)}`} · Latencia total: {response.latency_ms.toFixed(0)} ms
           </div>

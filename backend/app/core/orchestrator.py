@@ -2,6 +2,7 @@ import asyncio
 import time
 
 from app.config import Settings
+from app.core.critic import CrossCritic, Critique
 from app.core.router import RoutingDecision, TaskRouter
 from app.core.synthesizer import Synthesizer
 from app.providers.base import LLMProvider, LLMResponse
@@ -18,11 +19,13 @@ class DeliberationResult:
         responses: list[LLMResponse],
         latency_ms: float,
         routing: RoutingDecision,
+        critiques: list[Critique] | None = None,
     ) -> None:
         self.final_answer = final_answer
         self.responses = responses
         self.latency_ms = latency_ms
         self.routing = routing
+        self.critiques = critiques or []
 
 
 class DeliberationOrchestrator:
@@ -31,10 +34,12 @@ class DeliberationOrchestrator:
         providers: dict[str, LLMProvider],
         settings: Settings,
         router: TaskRouter | None = None,
+        critic: CrossCritic | None = None,
     ) -> None:
         self.providers = providers
         self.settings = settings
         self.router = router or TaskRouter()
+        self.critic = critic or CrossCritic(settings.max_tokens_per_request)
 
     async def _call_provider(self, provider: LLMProvider, prompt: str) -> LLMResponse:
         try:
@@ -47,6 +52,28 @@ class DeliberationOrchestrator:
                 provider=provider.provider_name,
                 model=provider.model,
                 error=f"{type(exc).__name__}: {exc}",
+            )
+
+    async def _run_critique(
+        self,
+        provider: LLMProvider,
+        original_prompt: str,
+        own_response: LLMResponse,
+        other_responses: list[LLMResponse],
+    ) -> Critique:
+        try:
+            return await asyncio.wait_for(
+                self.critic.run(provider, original_prompt, own_response, other_responses),
+                timeout=self.settings.provider_timeout_seconds,
+            )
+        except Exception as exc:
+            return Critique(
+                response=LLMResponse(
+                    provider=provider.provider_name,
+                    model=provider.model,
+                    error=f"{type(exc).__name__}: {exc}",
+                ),
+                reviewed_providers=[f"{r.provider}/{r.model}" for r in other_responses],
             )
 
     async def run(self, prompt: str) -> DeliberationResult:
@@ -80,12 +107,47 @@ class DeliberationOrchestrator:
         if not successful:
             raise AllProvidersFailedError("All configured LLM providers failed")
 
+        critiques: list[Critique] = []
+        if self.settings.enable_cross_critique and len(successful) >= 2:
+            responses_by_provider_name = {response.provider: response for response in successful}
+            critique_tasks = []
+            critique_providers = []
+            for name, own_response in responses_by_provider_name.items():
+                provider = active_providers.get(name)
+                if provider is None:
+                    continue
+                others = [
+                    response
+                    for other_name, response in responses_by_provider_name.items()
+                    if other_name != name
+                ]
+                critique_providers.append(provider)
+                critique_tasks.append(self._run_critique(provider, prompt, own_response, others))
+
+            critique_results = await asyncio.gather(*critique_tasks, return_exceptions=True)
+            for provider, result in zip(critique_providers, critique_results, strict=True):
+                if isinstance(result, Critique):
+                    critiques.append(result)
+                else:
+                    critiques.append(
+                        Critique(
+                            response=LLMResponse(
+                                provider=provider.provider_name,
+                                model=provider.model,
+                                error=f"{type(result).__name__}: {result}",
+                            ),
+                            reviewed_providers=[],
+                        )
+                    )
+
         synthesizer_provider = active_providers.get(self.settings.synthesizer_provider)
         if synthesizer_provider is None:
             synthesizer_provider = next(iter(active_providers.values()))
 
         synthesis = await asyncio.wait_for(
-            Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(prompt, successful),
+            Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
+                prompt, successful, critiques
+            ),
             timeout=self.settings.provider_timeout_seconds,
         )
         if synthesis.succeeded:
@@ -101,4 +163,5 @@ class DeliberationOrchestrator:
             responses=responses,
             latency_ms=(time.perf_counter() - started) * 1000,
             routing=decision,
+            critiques=critiques,
         )
