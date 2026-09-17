@@ -2,11 +2,13 @@ import asyncio
 import time
 
 from app.config import Settings
+from app.core.code_verifier import CodeVerification, CodeVerifier, extract_python_code
 from app.core.critic import CrossCritic, Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementDetector, DisagreementLevel
 from app.core.reevaluator import Reevaluator
-from app.core.router import RoutingDecision, TaskRouter
+from app.core.router import RoutingDecision, TaskRouter, TaskType
 from app.core.synthesizer import Synthesizer
+from app.core.test_case_generator import TestCaseGenerator
 from app.providers.base import LLMProvider, LLMResponse
 
 
@@ -32,6 +34,9 @@ class DeliberationResult:
         critiques: list[Critique] | None = None,
         disagreement: DisagreementAssessment | None = None,
         revisions: list[LLMResponse] | None = None,
+        code_verifications: list[CodeVerification] | None = None,
+        generated_tests: str | None = None,
+        test_generation: LLMResponse | None = None,
     ) -> None:
         self.final_answer = final_answer
         self.responses = responses
@@ -40,6 +45,9 @@ class DeliberationResult:
         self.critiques = critiques or []
         self.disagreement = disagreement or _default_disagreement_assessment()
         self.revisions = revisions or []
+        self.code_verifications = code_verifications or []
+        self.generated_tests = generated_tests
+        self.test_generation = test_generation
 
 
 class DeliberationOrchestrator:
@@ -51,6 +59,8 @@ class DeliberationOrchestrator:
         critic: CrossCritic | None = None,
         disagreement_detector: DisagreementDetector | None = None,
         reevaluator: Reevaluator | None = None,
+        test_case_generator: TestCaseGenerator | None = None,
+        code_verifier: CodeVerifier | None = None,
     ) -> None:
         self.providers = providers
         self.settings = settings
@@ -58,6 +68,10 @@ class DeliberationOrchestrator:
         self.critic = critic or CrossCritic(settings.max_tokens_per_request)
         self.disagreement_detector = disagreement_detector or DisagreementDetector()
         self.reevaluator = reevaluator or Reevaluator(settings.max_tokens_per_request)
+        self.test_case_generator = test_case_generator or TestCaseGenerator(settings.max_tokens_per_request)
+        self.code_verifier = code_verifier or CodeVerifier(
+            settings.code_execution_timeout_seconds, settings.code_max_output_chars
+        )
 
     async def _call_provider(self, provider: LLMProvider, prompt: str) -> LLMResponse:
         try:
@@ -110,6 +124,20 @@ class DeliberationOrchestrator:
             return LLMResponse(
                 provider=provider.provider_name,
                 model=provider.model,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+
+    async def _run_code_verification(self, candidate_code: str, test_code: str) -> CodeVerification:
+        try:
+            return await self.code_verifier.verify(candidate_code, test_code)
+        except Exception as exc:
+            return CodeVerification(
+                passed=False,
+                tests_run=0,
+                tests_passed=0,
+                tests_failed=0,
+                stdout="",
+                stderr="",
                 error=f"{type(exc).__name__}: {exc}",
             )
 
@@ -220,9 +248,86 @@ class DeliberationOrchestrator:
         if synthesizer_provider is None:
             synthesizer_provider = next(iter(active_providers.values()))
 
+        code_verifications: list[CodeVerification] = []
+        generated_tests: str | None = None
+        test_response: LLMResponse | None = None
+        if decision.task_type == TaskType.CODE and self.settings.enable_code_verification and successful:
+            try:
+                test_response = await asyncio.wait_for(
+                    self.test_case_generator.run(synthesizer_provider, prompt),
+                    timeout=self.settings.provider_timeout_seconds,
+                )
+            except Exception as exc:
+                test_response = LLMResponse(
+                    provider=synthesizer_provider.provider_name,
+                    model=synthesizer_provider.model,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+
+            test_code = extract_python_code(test_response.content) if test_response.succeeded else None
+            if test_response.succeeded and test_code is not None:
+                generated_tests = test_code
+                verification_tasks = []
+                verification_targets = []
+                for response in successful:
+                    candidate_code = extract_python_code(response.content)
+                    if candidate_code is None:
+                        code_verifications.append(
+                            CodeVerification(
+                                provider=response.provider,
+                                model=response.model,
+                                passed=False,
+                                tests_run=0,
+                                tests_passed=0,
+                                tests_failed=0,
+                                stdout="",
+                                stderr="",
+                                error="no se encontró un bloque de código Python en la respuesta",
+                            )
+                        )
+                        continue
+                    verification_targets.append(response)
+                    verification_tasks.append(self._run_code_verification(candidate_code, test_code))
+
+                if verification_tasks:
+                    verification_results = await asyncio.gather(*verification_tasks, return_exceptions=True)
+                    for response, result in zip(verification_targets, verification_results, strict=True):
+                        if isinstance(result, CodeVerification):
+                            result.provider = response.provider
+                            result.model = response.model
+                            code_verifications.append(result)
+                        else:
+                            code_verifications.append(
+                                CodeVerification(
+                                    provider=response.provider,
+                                    model=response.model,
+                                    passed=False,
+                                    tests_run=0,
+                                    tests_passed=0,
+                                    tests_failed=0,
+                                    stdout="",
+                                    stderr="",
+                                    error=f"{type(result).__name__}: {result}",
+                                )
+                            )
+            elif not test_response.succeeded:
+                code_verifications.append(
+                    CodeVerification(
+                        provider=test_response.provider,
+                        model=test_response.model,
+                        passed=False,
+                        tests_run=0,
+                        tests_passed=0,
+                        tests_failed=0,
+                        stdout="",
+                        stderr="",
+                        error=f"no se pudo generar el suite de tests: {test_response.error}",
+                    )
+                )
+
         synthesis = await asyncio.wait_for(
             Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
-                prompt, successful, critiques, disagreement
+                prompt, successful, critiques, disagreement, code_verifications
             ),
             timeout=self.settings.provider_timeout_seconds,
         )
@@ -242,4 +347,7 @@ class DeliberationOrchestrator:
             critiques=critiques,
             disagreement=disagreement,
             revisions=revisions,
+            code_verifications=code_verifications,
+            generated_tests=generated_tests,
+            test_generation=test_response,
         )

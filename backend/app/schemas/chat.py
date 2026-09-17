@@ -26,6 +26,19 @@ class CritiqueResponse(BaseModel):
     error: str | None = None
 
 
+class CodeVerificationResponse(BaseModel):
+    provider: str
+    model: str
+    passed: bool
+    tests_run: int
+    tests_passed: int
+    tests_failed: int
+    stdout: str
+    stderr: str
+    error: str | None = None
+    timed_out: bool = False
+
+
 class ChatResponse(BaseModel):
     final_answer: str
     responses: list[ProviderResponse]
@@ -37,6 +50,9 @@ class ChatResponse(BaseModel):
     latency_ms: float
     complexity: str
     routing_reason: str
+    task_type: str
     disagreement_level: str
     disagreement_reason: str
     disagreement_evidence: list[str]
+    generated_tests: str | None
+    code_verifications: list[CodeVerificationResponse]

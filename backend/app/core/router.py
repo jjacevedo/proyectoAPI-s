@@ -10,6 +10,11 @@ class TaskComplexity(str, Enum):
     HIGH = "high"
 
 
+class TaskType(str, Enum):
+    CODE = "code"
+    GENERAL = "general"
+
+
 # Palabras clave orientativas, no exhaustivas. El objetivo no es una
 # clasificacion perfecta sino evitar gastar los 3 providers en preguntas
 # simples (principio de gestion de costos del documento de diseno).
@@ -26,12 +31,24 @@ _MEDIUM_COMPLEXITY_KEYWORDS = (
     "implementa",
 )
 
+# Independiente de la complejidad: si el prompt parece pedir programacion,
+# activa la verificacion externa de codigo (issue #11) en vez de depender
+# solo de la opinion de otro LLM.
+_CODE_KEYWORDS = (
+    "código", "codigo", "function", "función", "funcion", "clase ",
+    "algoritmo", "algorithm", "script", "programa", "program",
+    "implementa", "implement", "debug", "bug ", "python", "javascript",
+    "typescript", "def ", "método", "metodo", "compila", "refactoriza",
+    "unit test", "test unitario", "programación", "programacion",
+)
+
 
 @dataclass(frozen=True)
 class RoutingDecision:
     complexity: TaskComplexity
     provider_count: int
     reason: str
+    task_type: TaskType = TaskType.GENERAL
 
 
 class TaskRouter:
@@ -47,23 +64,27 @@ class TaskRouter:
     def classify(self, prompt: str) -> RoutingDecision:
         normalized = prompt.lower()
         length = len(prompt.strip())
+        task_type = TaskType.CODE if any(keyword in normalized for keyword in _CODE_KEYWORDS) else TaskType.GENERAL
 
         if any(keyword in normalized for keyword in _HIGH_COMPLEXITY_KEYWORDS) or length > self.high_threshold_chars:
             return RoutingDecision(
                 complexity=TaskComplexity.HIGH,
                 provider_count=3,
                 reason="palabra clave de alta complejidad o prompt largo",
+                task_type=task_type,
             )
         if any(keyword in normalized for keyword in _MEDIUM_COMPLEXITY_KEYWORDS) or length > self.low_threshold_chars:
             return RoutingDecision(
                 complexity=TaskComplexity.MEDIUM,
                 provider_count=2,
                 reason="palabra clave de complejidad media o prompt moderado",
+                task_type=task_type,
             )
         return RoutingDecision(
             complexity=TaskComplexity.LOW,
             provider_count=1,
             reason="prompt corto sin palabras clave de mayor complejidad",
+            task_type=task_type,
         )
 
     def select_providers(

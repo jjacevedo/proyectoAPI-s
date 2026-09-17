@@ -17,6 +17,10 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
         for revision in result.revisions
         if revision.cost_estimated_usd is not None
     ]
+    if result.test_generation is not None and result.test_generation.cost_estimated_usd is not None:
+        costs.append(result.test_generation.cost_estimated_usd)
+    test_generation_tokens = result.test_generation.tokens if result.test_generation else 0
+
     log = RequestLog(
         prompt=prompt,
         models_used=[f"{response.provider}/{response.model}" for response in successful],
@@ -32,13 +36,17 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
         final_answer=result.final_answer,
         tokens=sum(response.tokens for response in result.responses)
         + sum(critique.response.tokens for critique in result.critiques)
-        + sum(revision.tokens for revision in result.revisions),
+        + sum(revision.tokens for revision in result.revisions)
+        + test_generation_tokens,
         cost_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,
         disagreement_level=result.disagreement.level.value,
         disagreement_reason=result.disagreement.reason,
         disagreement_evidence=result.disagreement.evidence,
+        task_type=result.routing.task_type.value,
+        generated_tests=result.generated_tests,
+        code_verifications=[verification.model_dump() for verification in result.code_verifications],
     )
     session.add(log)
     await session.commit()

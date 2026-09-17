@@ -7,7 +7,7 @@ from app.core.critic import CrossCritic
 from app.core.disagreement import DisagreementLevel
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
 from app.core.reevaluator import Reevaluator
-from app.core.router import TaskRouter
+from app.core.router import TaskRouter, TaskType
 from app.providers.base import LLMProvider, LLMResponse
 
 
@@ -57,6 +57,23 @@ def settings_with_reevaluation():
         provider_timeout_seconds=1,
         enable_cross_critique=True,
         enable_reevaluation_round=True,
+    )
+
+
+@pytest.fixture
+def settings_with_code_verification():
+    """Critique and reevaluation are disabled here so the synthesizer
+    provider's call count is predictable (round-1 generation, test-suite
+    generation, synthesis — exactly 3 calls) and isolated from those
+    other pipeline stages, which have their own fixtures above."""
+    return Settings(
+        synthesizer_provider="openai",
+        max_tokens_per_request=100,
+        provider_timeout_seconds=1,
+        enable_cross_critique=False,
+        enable_reevaluation_round=False,
+        enable_code_verification=True,
+        code_execution_timeout_seconds=2,
     )
 
 
@@ -358,3 +375,119 @@ async def test_orchestrator_reevaluation_failure_falls_back_to_original_response
     # The final answer must still be produced: gemini's ORIGINAL response
     # (not a revision) should have been used as a synthesis candidate.
     assert result.final_answer
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_runs_code_verification_for_code_task(settings_with_code_verification):
+    correct_code = "```python\ndef add(a, b):\n    return a + b\n```"
+    wrong_code = "```python\ndef add(a, b):\n    return a - b\n```"
+    no_code = "Aquí tienes una explicación sin ningún bloque de código."
+    generated_tests = (
+        "```python\n"
+        "import unittest\n\n"
+        "class TestAdd(unittest.TestCase):\n"
+        "    def test_basic(self):\n"
+        "        self.assertEqual(add(2, 3), 5)\n"
+        "```"
+    )
+
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="openai-model", content=correct_code)),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="anthropic-model", content=wrong_code)),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="gemini-model", content=no_code)),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="openai-model", content=correct_code),  # round-1 generation
+        LLMResponse(provider="openai", model="openai-model", content=generated_tests),  # test-suite generation
+        LLMResponse(provider="openai", model="openai-model", content="final synthesis"),  # synthesis
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_code_verification, router=_always_high_router()
+    )
+    result = await orchestrator.run("Escribe una función en Python que sume dos números.")
+
+    assert result.routing.task_type == TaskType.CODE
+    assert providers["openai"].generate.await_count == 3
+    assert result.generated_tests is not None
+    assert "TestAdd" in result.generated_tests
+
+    verifications_by_provider = {v.provider: v for v in result.code_verifications}
+    assert len(verifications_by_provider) == 3
+    assert verifications_by_provider["openai"].passed is True
+    assert verifications_by_provider["anthropic"].passed is False
+    assert verifications_by_provider["anthropic"].tests_failed > 0
+    assert verifications_by_provider["gemini"].error is not None
+    assert result.final_answer == "final synthesis"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_skips_code_verification_for_general_task(settings_with_code_verification):
+    providers = {
+        name: FakeProvider(name, LLMResponse(provider=name, model=f"{name}-model", content=name))
+        for name in ["openai", "anthropic", "gemini"]
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="openai-model", content="openai"),
+        LLMResponse(provider="openai", model="openai-model", content="final"),
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_code_verification, router=_always_high_router()
+    )
+    result = await orchestrator.run("Cuéntame sobre el clima de hoy.")
+
+    assert result.routing.task_type == TaskType.GENERAL
+    assert result.code_verifications == []
+    assert result.generated_tests is None
+    # Only round-1 generation + synthesis: no test-suite generation call.
+    assert providers["openai"].generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_enable_code_verification_false_skips_it_even_for_code_task(settings):
+    """`settings` has enable_code_verification at its default (True) turned
+    off explicitly here to isolate the flag itself from task-type routing,
+    which is covered by the test above."""
+    disabled_settings = settings.model_copy(update={"enable_code_verification": False})
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="```python\ndef add(a, b):\n    return a + b\n```")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="```python\ndef add(a, b):\n    return a + b\n```"),
+        LLMResponse(provider="openai", model="a", content="final"),
+    ])
+
+    orchestrator = DeliberationOrchestrator(providers, disabled_settings, router=_always_high_router())
+    result = await orchestrator.run("Escribe una función en Python que sume dos números.")
+
+    assert result.routing.task_type == TaskType.CODE
+    assert result.code_verifications == []
+    assert result.generated_tests is None
+    assert providers["openai"].generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_test_generation_failure_does_not_block_synthesis(settings_with_code_verification):
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="```python\ndef add(a, b):\n    return a + b\n```")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="```python\ndef add(a, b):\n    return a + b\n```"),
+        LLMResponse(provider="openai", model="a", error="test generation boom"),
+        LLMResponse(provider="openai", model="a", content="final"),
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_code_verification, router=_always_high_router()
+    )
+    result = await orchestrator.run("Escribe una función en Python que sume dos números.")
+
+    assert result.generated_tests is None
+    assert len(result.code_verifications) == 1
+    assert "no se pudo generar el suite de tests" in result.code_verifications[0].error
+    assert result.final_answer == "final"

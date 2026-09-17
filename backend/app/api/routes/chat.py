@@ -5,7 +5,13 @@ from app.api.deps import get_db
 from app.config import settings
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
 from app.providers.registry import build_providers
-from app.schemas.chat import ChatRequest, ChatResponse, CritiqueResponse, ProviderResponse
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    CodeVerificationResponse,
+    CritiqueResponse,
+    ProviderResponse,
+)
 from app.services.request_logger import persist_request
 
 router = APIRouter(tags=["chat"])
@@ -66,9 +72,29 @@ async def chat(
         )
         for revision in result.revisions
     ]
+    code_verification_models = [
+        CodeVerificationResponse(
+            provider=verification.provider,
+            model=verification.model,
+            passed=verification.passed,
+            tests_run=verification.tests_run,
+            tests_passed=verification.tests_passed,
+            tests_failed=verification.tests_failed,
+            stdout=verification.stdout,
+            stderr=verification.stderr,
+            error=verification.error,
+            timed_out=verification.timed_out,
+        )
+        for verification in result.code_verifications
+    ]
+    test_generation_tokens = result.test_generation.tokens if result.test_generation else 0
+    test_generation_cost = result.test_generation.cost_estimated_usd if result.test_generation else None
+
     costs = [item.cost_estimated_usd for item in response_models if item.cost_estimated_usd is not None]
     costs += [item.cost_estimated_usd for item in critique_models if item.cost_estimated_usd is not None]
     costs += [item.cost_estimated_usd for item in revision_models if item.cost_estimated_usd is not None]
+    if test_generation_cost is not None:
+        costs.append(test_generation_cost)
     return ChatResponse(
         final_answer=result.final_answer,
         responses=response_models,
@@ -77,12 +103,16 @@ async def chat(
         models_used=[f"{item.provider}/{item.model}" for item in response_models if item.error is None],
         total_tokens=sum(item.tokens for item in response_models)
         + sum(item.tokens for item in critique_models)
-        + sum(item.tokens for item in revision_models),
+        + sum(item.tokens for item in revision_models)
+        + test_generation_tokens,
         total_cost_estimated_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,
         routing_reason=result.routing.reason,
+        task_type=result.routing.task_type.value,
         disagreement_level=result.disagreement.level.value,
         disagreement_reason=result.disagreement.reason,
         disagreement_evidence=result.disagreement.evidence,
+        generated_tests=result.generated_tests,
+        code_verifications=code_verification_models,
     )

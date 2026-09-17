@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChatForm } from '@/components/ChatForm';
+import { CodeVerificationPanel } from '@/components/CodeVerificationPanel';
 import { CritiquesAccordion } from '@/components/CritiquesAccordion';
 import { DisagreementNotice } from '@/components/DisagreementNotice';
 import { FinalAnswer } from '@/components/FinalAnswer';
@@ -43,11 +44,15 @@ export default function Home() {
           <IndividualResponsesAccordion responses={response.responses} />
           <CritiquesAccordion critiques={response.critiques} />
           <RevisionsAccordion revisions={response.revisions} />
+          <CodeVerificationPanel
+            generatedTests={response.generated_tests}
+            verifications={response.code_verifications}
+          />
           <div className="card meta">
             Tokens: {response.total_tokens} · Costo estimado: {response.total_cost_estimated_usd == null ? 'N/D' : `$${response.total_cost_estimated_usd.toFixed(6)}`} · Latencia total: {response.latency_ms.toFixed(0)} ms
           </div>
           <div className="card meta">
-            Complejidad detectada: {response.complexity} ({response.routing_reason})
+            Complejidad detectada: {response.complexity} ({response.routing_reason}) · Tipo de tarea: {response.task_type}
           </div>
           <DisagreementNotice
             disagreement_level={response.disagreement_level}

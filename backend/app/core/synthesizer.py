@@ -1,3 +1,4 @@
+from app.core.code_verifier import CodeVerification
 from app.core.critic import Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementLevel
 from app.providers.base import LLMProvider, LLMResponse
@@ -14,6 +15,7 @@ class Synthesizer:
         responses: list[LLMResponse],
         critiques: list[Critique] | None = None,
         disagreement: DisagreementAssessment | None = None,
+        code_verifications: list[CodeVerification] | None = None,
     ) -> str:
         parts = [
             "You are the final synthesizer in a multi-LLM system.",
@@ -46,6 +48,33 @@ class Synthesizer:
                 "position is more likely correct and why, or acknowledge the uncertainty if "
                 "you cannot determine it."
             )
+        if code_verifications:
+            parts.append(
+                "\nOBJECTIVE TEST RESULTS (real code execution, not an opinion — weigh this "
+                "far more heavily than any candidate's or critique's claims about correctness):"
+            )
+            for verification in code_verifications:
+                if verification.error:
+                    parts.append(
+                        f"- {verification.provider}/{verification.model}: could not verify "
+                        f"({verification.error})"
+                    )
+                elif verification.passed:
+                    parts.append(
+                        f"- {verification.provider}/{verification.model}: PASSED "
+                        f"{verification.tests_passed}/{verification.tests_run} tests"
+                    )
+                else:
+                    parts.append(
+                        f"- {verification.provider}/{verification.model}: FAILED "
+                        f"{verification.tests_failed}/{verification.tests_run} tests "
+                        f"(stderr: {verification.stderr[:500]})"
+                    )
+            parts.append(
+                "\nPrefer an implementation that passed the tests. If none passed, say so "
+                "explicitly and explain the most likely cause instead of presenting untested "
+                "code as correct."
+            )
         parts.append("\nReturn only the final user-facing answer.")
         return "\n".join(parts)
 
@@ -55,6 +84,7 @@ class Synthesizer:
         responses: list[LLMResponse],
         critiques: list[Critique] | None = None,
         disagreement: DisagreementAssessment | None = None,
+        code_verifications: list[CodeVerification] | None = None,
     ) -> LLMResponse:
-        prompt = self.build_prompt(original_prompt, responses, critiques, disagreement)
+        prompt = self.build_prompt(original_prompt, responses, critiques, disagreement, code_verifications)
         return await self.provider.generate(prompt, max_tokens=self.max_tokens)

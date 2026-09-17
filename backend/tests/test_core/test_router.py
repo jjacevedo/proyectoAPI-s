@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.router import TaskComplexity, TaskRouter
+from app.core.router import TaskComplexity, TaskRouter, TaskType
 
 
 @pytest.fixture
@@ -50,3 +50,13 @@ def test_select_providers_falls_back_to_available_when_priority_missing():
     decision = router.classify("¿Qué es una API?")  # LOW -> 1
     selected = router.select_providers(providers, decision, priority=["openai", "gemini", "anthropic"])
     assert list(selected.keys()) == ["anthropic"]
+
+
+def test_classifies_coding_request_as_code_type(router):
+    decision = router.classify("Implementa una función en Python que calcule el máximo común divisor.")
+    assert decision.task_type == TaskType.CODE
+
+
+def test_classifies_general_question_as_general_type(router):
+    decision = router.classify("¿Qué es una API?")
+    assert decision.task_type == TaskType.GENERAL

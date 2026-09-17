@@ -19,6 +19,19 @@ export type CritiqueResponse = {
   error: string | null;
 };
 
+export type CodeVerificationResponse = {
+  provider: string;
+  model: string;
+  passed: boolean;
+  tests_run: number;
+  tests_passed: number;
+  tests_failed: number;
+  stdout: string;
+  stderr: string;
+  error: string | null;
+  timed_out: boolean;
+};
+
 export type ChatResponse = {
   final_answer: string;
   responses: ProviderResponse[];
@@ -30,7 +43,10 @@ export type ChatResponse = {
   latency_ms: number;
   complexity: string;
   routing_reason: string;
+  task_type: string;
   disagreement_level: string;
   disagreement_reason: string;
   disagreement_evidence: string[];
+  generated_tests: string | null;
+  code_verifications: CodeVerificationResponse[];
 };

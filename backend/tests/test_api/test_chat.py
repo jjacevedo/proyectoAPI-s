@@ -3,10 +3,11 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.api.routes.chat import get_orchestrator
+from app.core.code_verifier import CodeVerification
 from app.core.critic import Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementLevel
 from app.core.orchestrator import DeliberationResult
-from app.core.router import RoutingDecision, TaskComplexity
+from app.core.router import RoutingDecision, TaskComplexity, TaskType
 from app.providers.base import LLMResponse
 
 
@@ -46,6 +47,34 @@ class FakeOrchestratorWithRevisions:
         routing = RoutingDecision(complexity=TaskComplexity.HIGH, provider_count=2, reason="test")
         revision = LLMResponse(provider="openai", model="test", content="revised final", tokens=5)
         return DeliberationResult("final", [response], 12.5, routing, revisions=[revision])
+
+
+class FakeOrchestratorWithCodeVerification:
+    async def run(self, prompt: str):
+        response = LLMResponse(provider="openai", model="test", content="final", tokens=4)
+        routing = RoutingDecision(
+            complexity=TaskComplexity.MEDIUM, provider_count=2, reason="test", task_type=TaskType.CODE
+        )
+        test_generation = LLMResponse(provider="openai", model="test", content="```python\nclass T: pass\n```", tokens=6)
+        verification = CodeVerification(
+            provider="openai",
+            model="test",
+            passed=True,
+            tests_run=1,
+            tests_passed=1,
+            tests_failed=0,
+            stdout="ok",
+            stderr="",
+        )
+        return DeliberationResult(
+            "final",
+            [response],
+            12.5,
+            routing,
+            code_verifications=[verification],
+            generated_tests="class T: pass",
+            test_generation=test_generation,
+        )
 
 
 @pytest.mark.asyncio
@@ -162,3 +191,34 @@ async def test_chat_endpoint_exposes_revisions(client):
     assert len(data["revisions"]) == 1
     assert data["revisions"][0]["content"] == "revised final"
     assert data["total_tokens"] == 4 + 5
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_exposes_code_verification(client):
+    from app.main import app
+
+    app.dependency_overrides[get_orchestrator] = lambda: FakeOrchestratorWithCodeVerification()
+    from app.api.deps import get_db
+
+    class FakeSession:
+        async def commit(self):
+            pass
+
+        def add(self, item):
+            pass
+
+    async def fake_db():
+        yield FakeSession()
+
+    app.dependency_overrides[get_db] = fake_db
+    response = await client.post("/api/chat", json={"prompt": "hello"})
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task_type"] == "code"
+    assert data["generated_tests"] == "class T: pass"
+    assert len(data["code_verifications"]) == 1
+    assert data["code_verifications"][0]["provider"] == "openai"
+    assert data["code_verifications"][0]["passed"] is True
+    assert data["total_tokens"] == 4 + 6
