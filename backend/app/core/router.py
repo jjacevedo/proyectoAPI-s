@@ -12,6 +12,7 @@ class TaskComplexity(str, Enum):
 
 class TaskType(str, Enum):
     CODE = "code"
+    MATH = "math"
     GENERAL = "general"
 
 
@@ -42,6 +43,20 @@ _CODE_KEYWORDS = (
     "unit test", "test unitario", "programación", "programacion",
 )
 
+# Independiente de la complejidad y de _CODE_KEYWORDS: si el prompt pide un
+# calculo numerico (issue #12), activa el motor de calculo en vez de confiar
+# en la aritmetica de un LLM. Se revisa DESPUES de _CODE_KEYWORDS (ver
+# classify()) porque "escribe una funcion que calcule..." es una tarea de
+# programacion, no una pregunta aritmetica directa.
+_MATH_KEYWORDS = (
+    "calcula", "cuánto es", "cuanto es", "cuál es el resultado",
+    "cual es el resultado", "resuelve la ecuación", "resuelve la ecuacion",
+    "ecuación", "ecuacion", "porcentaje", "%", "raíz cuadrada",
+    "raiz cuadrada", "cuántos", "cuantos", "promedio", "área de", "area de",
+    "perímetro", "perimetro", "matemática", "matematica", "aritmética",
+    "aritmetica",
+)
+
 
 @dataclass(frozen=True)
 class RoutingDecision:
@@ -64,7 +79,12 @@ class TaskRouter:
     def classify(self, prompt: str) -> RoutingDecision:
         normalized = prompt.lower()
         length = len(prompt.strip())
-        task_type = TaskType.CODE if any(keyword in normalized for keyword in _CODE_KEYWORDS) else TaskType.GENERAL
+        if any(keyword in normalized for keyword in _CODE_KEYWORDS):
+            task_type = TaskType.CODE
+        elif any(keyword in normalized for keyword in _MATH_KEYWORDS):
+            task_type = TaskType.MATH
+        else:
+            task_type = TaskType.GENERAL
 
         if any(keyword in normalized for keyword in _HIGH_COMPLEXITY_KEYWORDS) or length > self.high_threshold_chars:
             return RoutingDecision(

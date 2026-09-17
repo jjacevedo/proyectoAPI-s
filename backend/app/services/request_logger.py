@@ -19,7 +19,10 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
     ]
     if result.test_generation is not None and result.test_generation.cost_estimated_usd is not None:
         costs.append(result.test_generation.cost_estimated_usd)
+    if result.solver_generation is not None and result.solver_generation.cost_estimated_usd is not None:
+        costs.append(result.solver_generation.cost_estimated_usd)
     test_generation_tokens = result.test_generation.tokens if result.test_generation else 0
+    solver_generation_tokens = result.solver_generation.tokens if result.solver_generation else 0
 
     log = RequestLog(
         prompt=prompt,
@@ -37,7 +40,8 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
         tokens=sum(response.tokens for response in result.responses)
         + sum(critique.response.tokens for critique in result.critiques)
         + sum(revision.tokens for revision in result.revisions)
-        + test_generation_tokens,
+        + test_generation_tokens
+        + solver_generation_tokens,
         cost_usd=sum(costs) if costs else None,
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,
@@ -47,6 +51,10 @@ async def persist_request(session: AsyncSession, prompt: str, result: Deliberati
         task_type=result.routing.task_type.value,
         generated_tests=result.generated_tests,
         code_verifications=[verification.model_dump() for verification in result.code_verifications],
+        reference_calculation=result.reference_calculation,
+        calculation_verifications=[
+            verification.model_dump() for verification in result.calculation_verifications
+        ],
     )
     session.add(log)
     await session.commit()

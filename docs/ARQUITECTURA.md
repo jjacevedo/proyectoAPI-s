@@ -139,11 +139,26 @@ Si `settings.enable_reevaluation_round` está activo y la ronda de crítica prod
 
 La revisión de cada provider **reemplaza** su respuesta en el conjunto que se usa para la síntesis final; si la reevaluación de un provider falla (timeout o excepción), se conserva su respuesta original de la ronda independiente en su lugar — misma degradación elegante que el resto del sistema. La crítica y la detección de desacuerdos usadas por la síntesis siguen siendo las de ANTES de la reevaluación (igual que en el ejemplo del documento), no se vuelve a criticar el resultado revisado. Las revisiones quedan expuestas en `ChatResponse.revisions` y persistidas en `request_logs.revisions` (JSONB), con su costo/tokens sumados al total.
 
+## Ejecución de código y tests (v3, issue #11)
+
+`TaskRouter.classify()` también clasifica `task_type` (`code`/`math`/`general`) por palabras clave, independiente de `complexity`. Cuando `task_type == code` y `settings.enable_code_verification` está activo, el orquestador genera un suite de tests compartido ANTES de ver las respuestas candidatas (`TestCaseGenerator`, `backend/app/core/test_case_generator.py` — mismo patrón que `Synthesizer`), para que la verificación no esté sesgada hacia ninguna implementación. Cada candidato con un bloque de código Python extraíble (`extract_python_code()`) se ejecuta contra ese suite en un subprocess aislado (`CodeVerifier`, `backend/app/core/code_verifier.py`): timeout de pared + límites de recursos (CPU/memoria/procesos/descriptores vía `resource.setrlimit`), entorno mínimo que **no** hereda las variables del backend (las API keys nunca llegan al código ejecutado). Esto **no** es aislamiento a nivel de kernel — es un nivel razonable para un proyecto de un solo usuario, no multi-tenant. El resultado (PASSED/FAILED por candidato) se le pasa al `Synthesizer` como evidencia objetiva, con instrucción explícita de pesarla más que la opinión de cualquier candidato o crítica. Expuesto en `ChatResponse.generated_tests`/`code_verifications` y persistido en `request_logs` (migración `0006_add_code_verification`).
+
+## Motor de cálculo para matemáticas (v3, issue #12)
+
+Mismo principio que la verificación de código, aplicado a aritmética: un valor calculado independientemente es evidencia objetiva mucho más fuerte que la aritmética mental de un LLM. Cuando `TaskRouter.classify()` detecta `task_type == math` (palabras clave como "calcula", "cuánto es", "%", "ecuación" — ver `_MATH_KEYWORDS` en `backend/app/core/router.py`, revisadas solo si no hubo match de `_CODE_KEYWORDS` primero, ya que "escribe una función que calcule..." es una tarea de programación) y `settings.enable_calculation_verification` está activo:
+
+1. `SolverScriptGenerator` (`backend/app/core/solver_script_generator.py`, mismo patrón que `TestCaseGenerator`) pide al provider designado como sintetizador un script Python corto (solo librería estándar) que calcule la respuesta e imprima una línea marcador `__CALC_RESULT__ <numero>`, ANTES de ver las respuestas candidatas.
+2. Ese script se ejecuta en el mismo sandbox que la verificación de código (`backend/app/core/sandbox_runner.py` — extraído de `code_verifier.py` en este cambio para que ambas features compartan el subprocess aislado sin duplicar la lógica de límites de recursos/timeout) y su resultado se toma como **valor de referencia**.
+3. Para cada candidato exitoso, `CalculationVerifier.verify_candidate()` extrae heurísticamente el ÚLTIMO número que aparece en su respuesta en texto libre (`extract_final_number()` — una aproximación de costo cero, no una interpretación perfecta de cualquier formato numérico) y lo compara contra el valor de referencia con una tolerancia relativa configurable (`settings.calculation_tolerance`).
+4. Si no se puede generar el script o no se puede calcular un valor de referencia (timeout, excepción), se registra el fallo sin bloquear la síntesis — misma degradación elegante que el resto del sistema.
+
+El `Synthesizer` recibe los resultados como evidencia objetiva y se le indica corregir explícitamente cualquier número de un candidato que no coincida con la referencia. Expuesto en `ChatResponse.reference_calculation`/`calculation_verifications` y persistido en `request_logs` (migración `0007_add_calc_verification`).
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
 - **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); múltiples rondas de deliberación (implementadas).
-- **v3:** herramientas externas pueden consumir los resultados antes de sintetizar.
+- **v3:** ejecución de código y tests (implementada); motor de cálculo (implementado); búsqueda/RAG pendiente.
 - **v4:** los logs existentes proporcionan la base para comparar costo, latencia y calidad.
 
 ## Decisiones de persistencia

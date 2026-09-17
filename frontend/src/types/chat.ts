@@ -32,6 +32,17 @@ export type CodeVerificationResponse = {
   timed_out: boolean;
 };
 
+export type CalculationVerificationResponse = {
+  provider: string;
+  model: string;
+  passed: boolean;
+  candidate_value: number | null;
+  reference_value: number | null;
+  difference: number | null;
+  error: string | null;
+  timed_out: boolean;
+};
+
 export type ChatResponse = {
   final_answer: string;
   responses: ProviderResponse[];
@@ -49,4 +60,6 @@ export type ChatResponse = {
   disagreement_evidence: string[];
   generated_tests: string | null;
   code_verifications: CodeVerificationResponse[];
+  reference_calculation: string | null;
+  calculation_verifications: CalculationVerificationResponse[];
 };

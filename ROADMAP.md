@@ -31,10 +31,10 @@ Para evitar depender de créditos de pago durante esta fase temprana (issue #17:
 
 ## Fase 3 — Verificación externa
 
-- Ejecución de código y tests.
-- Motor de cálculo para matemáticas.
-- Búsqueda y RAG para verificación factual.
-- Incorporación de evidencia externa al proceso de síntesis.
+- [x] Ejecución de código y tests (`TestCaseGenerator` + `CodeVerifier`, sandbox subprocess; issue #11).
+- [x] Motor de cálculo para matemáticas (`SolverScriptGenerator` + `CalculationVerifier`, comparte el sandbox con la verificación de código vía `sandbox_runner.py`; issue #12).
+- [ ] Búsqueda y RAG para verificación factual.
+- [ ] Incorporación de evidencia externa al proceso de síntesis (más allá de código/cálculo).
 
 ## Fase 4 — Evaluación y métricas
 

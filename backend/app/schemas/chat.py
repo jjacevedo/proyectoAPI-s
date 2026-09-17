@@ -39,6 +39,17 @@ class CodeVerificationResponse(BaseModel):
     timed_out: bool = False
 
 
+class CalculationVerificationResponse(BaseModel):
+    provider: str
+    model: str
+    passed: bool
+    candidate_value: float | None = None
+    reference_value: float | None = None
+    difference: float | None = None
+    error: str | None = None
+    timed_out: bool = False
+
+
 class ChatResponse(BaseModel):
     final_answer: str
     responses: list[ProviderResponse]
@@ -56,3 +67,5 @@ class ChatResponse(BaseModel):
     disagreement_evidence: list[str]
     generated_tests: str | None
     code_verifications: list[CodeVerificationResponse]
+    reference_calculation: str | None
+    calculation_verifications: list[CalculationVerificationResponse]

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     enable_code_verification: bool = True
     code_execution_timeout_seconds: float = Field(default=5, gt=0, le=60)
     code_max_output_chars: int = Field(default=4000, gt=0, le=100000)
+    enable_calculation_verification: bool = True
+    # Tolerancia RELATIVA al comparar el numero final de un candidato contra
+    # el valor de referencia calculado por el sandbox (ver calculation_verifier.py).
+    calculation_tolerance: float = Field(default=1e-6, gt=0, le=1)
     provider_timeout_seconds: float = Field(default=45, gt=0, le=300)
     max_tokens_per_request: int = Field(default=2048, gt=0, le=128000)
     max_prompt_chars: int = Field(default=12000, gt=100, le=100000)

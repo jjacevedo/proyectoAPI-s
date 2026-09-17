@@ -60,3 +60,18 @@ def test_classifies_coding_request_as_code_type(router):
 def test_classifies_general_question_as_general_type(router):
     decision = router.classify("¿Qué es una API?")
     assert decision.task_type == TaskType.GENERAL
+
+
+def test_classifies_arithmetic_request_as_math_type(router):
+    decision = router.classify("¿Cuánto es el 15% de 240?")
+    assert decision.task_type == TaskType.MATH
+
+
+def test_classifies_word_problem_as_math_type(router):
+    decision = router.classify("Un tren viaja a 80 km/h durante 3 horas. ¿Cuántos km recorre?")
+    assert decision.task_type == TaskType.MATH
+
+
+def test_code_keywords_take_precedence_over_math_keywords(router):
+    decision = router.classify("Escribe una función en Python que calcule el promedio de una lista.")
+    assert decision.task_type == TaskType.CODE

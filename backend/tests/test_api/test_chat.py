@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.api.routes.chat import get_orchestrator
+from app.core.calculation_verifier import CalculationVerification
 from app.core.code_verifier import CodeVerification
 from app.core.critic import Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementLevel
@@ -74,6 +75,34 @@ class FakeOrchestratorWithCodeVerification:
             code_verifications=[verification],
             generated_tests="class T: pass",
             test_generation=test_generation,
+        )
+
+
+class FakeOrchestratorWithCalculationVerification:
+    async def run(self, prompt: str):
+        response = LLMResponse(provider="openai", model="test", content="final", tokens=4)
+        routing = RoutingDecision(
+            complexity=TaskComplexity.MEDIUM, provider_count=2, reason="test", task_type=TaskType.MATH
+        )
+        solver_generation = LLMResponse(
+            provider="openai", model="test", content="```python\nprint('__CALC_RESULT__ 240')\n```", tokens=7
+        )
+        verification = CalculationVerification(
+            provider="openai",
+            model="test",
+            passed=True,
+            candidate_value=240.0,
+            reference_value=240.0,
+            difference=0.0,
+        )
+        return DeliberationResult(
+            "final",
+            [response],
+            12.5,
+            routing,
+            calculation_verifications=[verification],
+            reference_calculation="print('__CALC_RESULT__ 240')",
+            solver_generation=solver_generation,
         )
 
 
@@ -222,3 +251,35 @@ async def test_chat_endpoint_exposes_code_verification(client):
     assert data["code_verifications"][0]["provider"] == "openai"
     assert data["code_verifications"][0]["passed"] is True
     assert data["total_tokens"] == 4 + 6
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_exposes_calculation_verification(client):
+    from app.main import app
+
+    app.dependency_overrides[get_orchestrator] = lambda: FakeOrchestratorWithCalculationVerification()
+    from app.api.deps import get_db
+
+    class FakeSession:
+        async def commit(self):
+            pass
+
+        def add(self, item):
+            pass
+
+    async def fake_db():
+        yield FakeSession()
+
+    app.dependency_overrides[get_db] = fake_db
+    response = await client.post("/api/chat", json={"prompt": "hello"})
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task_type"] == "math"
+    assert data["reference_calculation"] == "print('__CALC_RESULT__ 240')"
+    assert len(data["calculation_verifications"]) == 1
+    assert data["calculation_verifications"][0]["provider"] == "openai"
+    assert data["calculation_verifications"][0]["passed"] is True
+    assert data["calculation_verifications"][0]["reference_value"] == 240.0
+    assert data["total_tokens"] == 4 + 7

@@ -82,6 +82,24 @@ def settings_with_code_verification():
     )
 
 
+@pytest.fixture
+def settings_with_calculation_verification():
+    """Critique and reevaluation are disabled here so the synthesizer
+    provider's call count is predictable (round-1 generation, solver-script
+    generation, synthesis — exactly 3 calls), same isolation pattern as
+    `settings_with_code_verification`."""
+    return Settings(
+        synthesizer_provider="openai",
+        provider_priority="openai,gemini,anthropic",
+        max_tokens_per_request=100,
+        provider_timeout_seconds=1,
+        enable_cross_critique=False,
+        enable_reevaluation_round=False,
+        enable_calculation_verification=True,
+        code_execution_timeout_seconds=2,
+    )
+
+
 def _always_high_router() -> TaskRouter:
     """These tests exercise orchestration mechanics (parallelism, degradation,
     synthesis fallback), not routing. Force HIGH complexity so all configured
@@ -495,4 +513,105 @@ async def test_orchestrator_test_generation_failure_does_not_block_synthesis(set
     assert result.generated_tests is None
     assert len(result.code_verifications) == 1
     assert "no se pudo generar el suite de tests" in result.code_verifications[0].error
+    assert result.final_answer == "final"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_runs_calculation_verification_for_math_task(settings_with_calculation_verification):
+    solver_script = "```python\nprint('__CALC_RESULT__ 240')\n```"
+
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="openai-model", content="El resultado es 240 km.")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="anthropic-model", content="El resultado es 180 km.")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="gemini-model", content="No puedo calcular esto.")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="openai-model", content="El resultado es 240 km."),  # round-1
+        LLMResponse(provider="openai", model="openai-model", content=solver_script),  # solver script
+        LLMResponse(provider="openai", model="openai-model", content="final synthesis"),  # synthesis
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_calculation_verification, router=_always_high_router()
+    )
+    result = await orchestrator.run("Un tren viaja a 80 km/h durante 3 horas. ¿Cuántos km recorre?")
+
+    assert result.routing.task_type == TaskType.MATH
+    assert providers["openai"].generate.await_count == 3
+    assert result.reference_calculation is not None
+
+    verifications_by_provider = {v.provider: v for v in result.calculation_verifications}
+    assert len(verifications_by_provider) == 3
+    assert verifications_by_provider["openai"].passed is True
+    assert verifications_by_provider["anthropic"].passed is False
+    assert verifications_by_provider["anthropic"].difference == 60.0
+    assert verifications_by_provider["gemini"].error is not None
+    assert result.final_answer == "final synthesis"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_skips_calculation_verification_for_general_task(settings_with_calculation_verification):
+    providers = {
+        name: FakeProvider(name, LLMResponse(provider=name, model=f"{name}-model", content=name))
+        for name in ["openai", "anthropic", "gemini"]
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="openai-model", content="openai"),
+        LLMResponse(provider="openai", model="openai-model", content="final"),
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_calculation_verification, router=_always_high_router()
+    )
+    result = await orchestrator.run("Cuéntame sobre el clima de hoy.")
+
+    assert result.routing.task_type == TaskType.GENERAL
+    assert result.calculation_verifications == []
+    assert result.reference_calculation is None
+    assert providers["openai"].generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_enable_calculation_verification_false_skips_it_even_for_math_task(settings):
+    disabled_settings = settings.model_copy(update={"enable_calculation_verification": False})
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="240")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="240"),
+        LLMResponse(provider="openai", model="a", content="final"),
+    ])
+
+    orchestrator = DeliberationOrchestrator(providers, disabled_settings, router=_always_high_router())
+    result = await orchestrator.run("¿Cuánto es el 15% de 240?")
+
+    assert result.routing.task_type == TaskType.MATH
+    assert result.calculation_verifications == []
+    assert result.reference_calculation is None
+    assert providers["openai"].generate.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_solver_generation_failure_does_not_block_synthesis(settings_with_calculation_verification):
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="240")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="240"),
+        LLMResponse(provider="openai", model="a", error="solver generation boom"),
+        LLMResponse(provider="openai", model="a", content="final"),
+    ])
+
+    orchestrator = DeliberationOrchestrator(
+        providers, settings_with_calculation_verification, router=_always_high_router()
+    )
+    result = await orchestrator.run("Un tren viaja a 80 km/h durante 3 horas. ¿Cuántos km recorre?")
+
+    assert result.reference_calculation is None
+    assert len(result.calculation_verifications) == 1
+    assert "no se pudo generar el script de cálculo" in result.calculation_verifications[0].error
     assert result.final_answer == "final"

@@ -1,3 +1,4 @@
+from app.core.calculation_verifier import CalculationVerification
 from app.core.code_verifier import CodeVerification
 from app.core.critic import Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementLevel
@@ -16,6 +17,7 @@ class Synthesizer:
         critiques: list[Critique] | None = None,
         disagreement: DisagreementAssessment | None = None,
         code_verifications: list[CodeVerification] | None = None,
+        calculation_verifications: list[CalculationVerification] | None = None,
     ) -> str:
         parts = [
             "You are the final synthesizer in a multi-LLM system.",
@@ -75,6 +77,34 @@ class Synthesizer:
                 "explicitly and explain the most likely cause instead of presenting untested "
                 "code as correct."
             )
+        if calculation_verifications:
+            parts.append(
+                "\nOBJECTIVE CALCULATION RESULTS (an independently computed reference value, "
+                "not an opinion — weigh this far more heavily than any candidate's stated "
+                "numeric answer):"
+            )
+            for verification in calculation_verifications:
+                if verification.error:
+                    parts.append(
+                        f"- {verification.provider}/{verification.model}: could not verify "
+                        f"({verification.error})"
+                    )
+                elif verification.passed:
+                    parts.append(
+                        f"- {verification.provider}/{verification.model}: MATCHES reference "
+                        f"value {verification.reference_value}"
+                    )
+                else:
+                    parts.append(
+                        f"- {verification.provider}/{verification.model}: stated "
+                        f"{verification.candidate_value}, reference value is "
+                        f"{verification.reference_value} (difference: {verification.difference})"
+                    )
+            parts.append(
+                "\nUse the reference value as the correct numeric answer. If a candidate's "
+                "stated number does not match it, correct it in your final answer instead of "
+                "repeating the wrong number."
+            )
         parts.append("\nReturn only the final user-facing answer.")
         return "\n".join(parts)
 
@@ -85,6 +115,9 @@ class Synthesizer:
         critiques: list[Critique] | None = None,
         disagreement: DisagreementAssessment | None = None,
         code_verifications: list[CodeVerification] | None = None,
+        calculation_verifications: list[CalculationVerification] | None = None,
     ) -> LLMResponse:
-        prompt = self.build_prompt(original_prompt, responses, critiques, disagreement, code_verifications)
+        prompt = self.build_prompt(
+            original_prompt, responses, critiques, disagreement, code_verifications, calculation_verifications
+        )
         return await self.provider.generate(prompt, max_tokens=self.max_tokens)

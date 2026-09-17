@@ -2,11 +2,13 @@ import asyncio
 import time
 
 from app.config import Settings
+from app.core.calculation_verifier import CalculationVerification, CalculationVerifier
 from app.core.code_verifier import CodeVerification, CodeVerifier, extract_python_code
 from app.core.critic import CrossCritic, Critique
 from app.core.disagreement import DisagreementAssessment, DisagreementDetector, DisagreementLevel
 from app.core.reevaluator import Reevaluator
 from app.core.router import RoutingDecision, TaskRouter, TaskType
+from app.core.solver_script_generator import SolverScriptGenerator
 from app.core.synthesizer import Synthesizer
 from app.core.test_case_generator import TestCaseGenerator
 from app.providers.base import LLMProvider, LLMResponse
@@ -37,6 +39,9 @@ class DeliberationResult:
         code_verifications: list[CodeVerification] | None = None,
         generated_tests: str | None = None,
         test_generation: LLMResponse | None = None,
+        calculation_verifications: list[CalculationVerification] | None = None,
+        reference_calculation: str | None = None,
+        solver_generation: LLMResponse | None = None,
     ) -> None:
         self.final_answer = final_answer
         self.responses = responses
@@ -48,6 +53,9 @@ class DeliberationResult:
         self.code_verifications = code_verifications or []
         self.generated_tests = generated_tests
         self.test_generation = test_generation
+        self.calculation_verifications = calculation_verifications or []
+        self.reference_calculation = reference_calculation
+        self.solver_generation = solver_generation
 
 
 class DeliberationOrchestrator:
@@ -61,6 +69,8 @@ class DeliberationOrchestrator:
         reevaluator: Reevaluator | None = None,
         test_case_generator: TestCaseGenerator | None = None,
         code_verifier: CodeVerifier | None = None,
+        solver_script_generator: SolverScriptGenerator | None = None,
+        calculation_verifier: CalculationVerifier | None = None,
     ) -> None:
         self.providers = providers
         self.settings = settings
@@ -71,6 +81,14 @@ class DeliberationOrchestrator:
         self.test_case_generator = test_case_generator or TestCaseGenerator(settings.max_tokens_per_request)
         self.code_verifier = code_verifier or CodeVerifier(
             settings.code_execution_timeout_seconds, settings.code_max_output_chars
+        )
+        self.solver_script_generator = solver_script_generator or SolverScriptGenerator(
+            settings.max_tokens_per_request
+        )
+        self.calculation_verifier = calculation_verifier or CalculationVerifier(
+            settings.code_execution_timeout_seconds,
+            settings.code_max_output_chars,
+            settings.calculation_tolerance,
         )
 
     async def _call_provider(self, provider: LLMProvider, prompt: str) -> LLMResponse:
@@ -140,6 +158,17 @@ class DeliberationOrchestrator:
                 stderr="",
                 error=f"{type(exc).__name__}: {exc}",
             )
+
+    async def _compute_calculation_reference(self, solver_script: str) -> tuple[float | None, str, str, bool]:
+        """Devuelve (reference_value, stdout, stderr, timed_out). Nunca
+        lanza: cualquier excepcion del sandbox se traduce en reference_value
+        None con timed_out=False (tratado como fallo de calculo, no de
+        infraestructura, igual que el resto de este metodo)."""
+        try:
+            value, sandbox_result = await self.calculation_verifier.compute_reference(solver_script)
+            return value, sandbox_result.stdout, sandbox_result.stderr, sandbox_result.timed_out
+        except Exception as exc:
+            return None, "", f"{type(exc).__name__}: {exc}", False
 
     async def run(self, prompt: str) -> DeliberationResult:
         if not self.providers:
@@ -325,9 +354,59 @@ class DeliberationOrchestrator:
                     )
                 )
 
+        calculation_verifications: list[CalculationVerification] = []
+        reference_calculation: str | None = None
+        solver_response: LLMResponse | None = None
+        if decision.task_type == TaskType.MATH and self.settings.enable_calculation_verification and successful:
+            try:
+                solver_response = await asyncio.wait_for(
+                    self.solver_script_generator.run(synthesizer_provider, prompt),
+                    timeout=self.settings.provider_timeout_seconds,
+                )
+            except Exception as exc:
+                solver_response = LLMResponse(
+                    provider=synthesizer_provider.provider_name,
+                    model=synthesizer_provider.model,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+
+            solver_code = extract_python_code(solver_response.content) if solver_response.succeeded else None
+            if solver_response.succeeded and solver_code is not None:
+                reference_value, ref_stdout, ref_stderr, ref_timed_out = await self._compute_calculation_reference(
+                    solver_code
+                )
+                if reference_value is not None:
+                    reference_calculation = solver_code
+                    for response in successful:
+                        calculation_verifications.append(
+                            self.calculation_verifier.verify_candidate(
+                                response.provider, response.model, response.content, reference_value
+                            )
+                        )
+                else:
+                    calculation_verifications.append(
+                        CalculationVerification(
+                            provider=solver_response.provider,
+                            model=solver_response.model,
+                            passed=False,
+                            error="no se pudo calcular un valor de referencia"
+                            + (" (tiempo de ejecución agotado)" if ref_timed_out else f": {ref_stderr[:500]}"),
+                            timed_out=ref_timed_out,
+                        )
+                    )
+            elif not solver_response.succeeded:
+                calculation_verifications.append(
+                    CalculationVerification(
+                        provider=solver_response.provider,
+                        model=solver_response.model,
+                        passed=False,
+                        error=f"no se pudo generar el script de cálculo: {solver_response.error}",
+                    )
+                )
+
         synthesis = await asyncio.wait_for(
             Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
-                prompt, successful, critiques, disagreement, code_verifications
+                prompt, successful, critiques, disagreement, code_verifications, calculation_verifications
             ),
             timeout=self.settings.provider_timeout_seconds,
         )
@@ -350,4 +429,7 @@ class DeliberationOrchestrator:
             code_verifications=code_verifications,
             generated_tests=generated_tests,
             test_generation=test_response,
+            calculation_verifications=calculation_verifications,
+            reference_calculation=reference_calculation,
+            solver_generation=solver_response,
         )

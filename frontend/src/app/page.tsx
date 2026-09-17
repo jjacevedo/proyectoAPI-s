@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CalculationVerificationPanel } from '@/components/CalculationVerificationPanel';
 import { ChatForm } from '@/components/ChatForm';
 import { CodeVerificationPanel } from '@/components/CodeVerificationPanel';
 import { CritiquesAccordion } from '@/components/CritiquesAccordion';
@@ -47,6 +48,10 @@ export default function Home() {
           <CodeVerificationPanel
             generatedTests={response.generated_tests}
             verifications={response.code_verifications}
+          />
+          <CalculationVerificationPanel
+            referenceCalculation={response.reference_calculation}
+            verifications={response.calculation_verifications}
           />
           <div className="card meta">
             Tokens: {response.total_tokens} · Costo estimado: {response.total_cost_estimated_usd == null ? 'N/D' : `$${response.total_cost_estimated_usd.toFixed(6)}`} · Latencia total: {response.latency_ms.toFixed(0)} ms

@@ -27,4 +27,6 @@ class RequestLog(Base):
     task_type: Mapped[str] = mapped_column(String(16), nullable=False, server_default="general")
     generated_tests: Mapped[str | None] = mapped_column(Text, nullable=True)
     code_verifications: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    reference_calculation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    calculation_verifications: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
