@@ -69,3 +69,25 @@ async def test_orchestrator_zero_of_three(settings):
     orchestrator = DeliberationOrchestrator(providers, settings)
     with pytest.raises(AllProvidersFailedError):
         await orchestrator.run("question")
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_falls_back_when_synthesizer_fails_after_succeeding(settings):
+    """The synthesizer provider (openai) answers the independent round fine,
+    but its second call (the actual synthesis) fails. The orchestrator must
+    fall back to the first successful candidate instead of raising or
+    returning an empty answer.
+    """
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="a")),
+        "anthropic": FakeProvider("anthropic", LLMResponse(provider="anthropic", model="b", content="b")),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    providers["openai"].generate = AsyncMock(side_effect=[
+        LLMResponse(provider="openai", model="a", content="a"),
+        LLMResponse(provider="openai", model="a", error="synthesis boom"),
+    ])
+    orchestrator = DeliberationOrchestrator(providers, settings)
+    result = await orchestrator.run("question")
+    assert result.final_answer == "a"
+    assert any(item.error == "synthesis boom" for item in result.responses)
