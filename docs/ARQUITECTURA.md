@@ -47,6 +47,13 @@
         (si hay >=2 exitosos: cada uno critica a los demas)
                               |
                               v
+                  +----------------------+
+                  | DisagreementDetector |
+                  +-----------+----------+
+                              |
+           (escanea las criticas por senales de contradiccion)
+                              |
+                              v
                     +------------------+
                     |    Synthesizer   |
                     +--------+---------+
@@ -98,10 +105,18 @@ Si hay al menos 2 respuestas exitosas y `settings.enable_cross_critique` está a
 
 Con N respuestas exitosas se hacen N llamadas de crítica (nunca N×(N-1)): cada modelo revisa a todos los demás en una sola llamada. Una crítica que falla (timeout o excepción) no bloquea la síntesis — se registra con `error` y se sigue, igual que el resto del sistema. El `Synthesizer` recibe las críticas exitosas junto con las respuestas originales y las usa para construir la respuesta final, con la misma advertencia de "esto es evidencia, no verdad" que ya aplica a las respuestas de los candidatos. Las críticas quedan expuestas en `ChatResponse.critiques` y persistidas en `request_logs.critiques` (JSONB) por transparencia, y su costo/tokens se suman al total reportado.
 
+## Detección de desacuerdos (v2)
+
+`DisagreementDetector.assess()` (`backend/app/core/disagreement.py`) clasifica el resultado de la ronda de crítica en `not_applicable` (no hubo crítica: menos de 2 exitosos o `enable_cross_critique=false`), `consensus` (hubo crítica y no señala contradicciones) o `disagreement` (al menos una crítica exitosa contiene una señal de contradicción/error).
+
+Decisión de diseño deliberada: en vez de comparar el texto de las respuestas originales entre sí (lo que el documento de diseño desaconseja como método principal — "no depender de coincidencia textual"), la detección escanea el **contenido de las críticas ya generadas en la ronda anterior**. Cada crítica es, por construcción, un análisis semántico hecho por un LLM que ya identificó explícitamente contradicciones y errores; escanear ese texto por palabras clave (mismo estilo heurístico que `TaskRouter`) es más fiel a "considerar el significado" que comparar las respuestas crudas, y no cuesta ninguna llamada adicional — reutiliza una llamada que el sistema ya paga en la crítica cruzada. La contrapartida: sin ronda de crítica no hay una segunda vía de detección por similitud de texto en esta iteración; queda como `not_applicable`.
+
+Cuando se detecta `disagreement`, el `Synthesizer` recibe la evidencia y se le pide resolverla explícitamente en la respuesta final (indicar qué postura es más probable o reconocer la incertidumbre) en vez de promediar o ignorar la discrepancia. El resultado (`disagreement_level`, `disagreement_reason`, `disagreement_evidence`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia. Este componente **detecta y reporta**, no dispara por sí mismo una nueva ronda de generación ni verificación externa — eso corresponde a fases posteriores (rondas múltiples, herramientas de verificación).
+
 ## Evolución por fases
 
 - **MVP:** generación paralela + síntesis.
-- **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); pendiente detección de desacuerdos y múltiples rondas.
+- **v2:** router de clasificación y selección dinámica (implementado); crítica cruzada (implementada); detección de desacuerdos (implementada); pendiente múltiples rondas.
 - **v3:** herramientas externas pueden consumir los resultados antes de sintetizar.
 - **v4:** los logs existentes proporcionan la base para comparar costo, latencia y calidad.
 

@@ -4,6 +4,7 @@ import pytest
 
 from app.config import Settings
 from app.core.critic import CrossCritic
+from app.core.disagreement import DisagreementLevel
 from app.core.orchestrator import AllProvidersFailedError, DeliberationOrchestrator
 from app.core.router import TaskRouter
 from app.providers.base import LLMProvider, LLMResponse
@@ -173,6 +174,7 @@ async def test_orchestrator_skips_critique_with_single_success(settings_with_cri
 
     assert result.critiques == []
     assert critic.run.await_count == 0
+    assert result.disagreement.level == DisagreementLevel.NOT_APPLICABLE
 
 
 @pytest.mark.asyncio
@@ -194,6 +196,30 @@ async def test_orchestrator_runs_one_critique_per_successful_provider(settings_w
         reviewed = set(critique.reviewed_providers)
         assert len(reviewed) == 2
         assert f"{critique.response.provider}/{critique.response.model}" not in reviewed
+    # The FakeProvider critiques here just echo fixed content with no
+    # disagreement keywords, so the detector should report consensus.
+    assert result.disagreement.level == DisagreementLevel.CONSENSUS
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_detects_disagreement_from_critique_content(settings_with_critique):
+    providers = {
+        "openai": FakeProvider("openai", LLMResponse(provider="openai", model="a", content="a")),
+        "anthropic": FakeProvider(
+            "anthropic",
+            LLMResponse(
+                provider="anthropic",
+                model="b",
+                content="La respuesta de openai contradice la evidencia presentada.",
+            ),
+        ),
+        "gemini": FakeProvider("gemini", LLMResponse(provider="gemini", model="c", content="c")),
+    }
+    orchestrator = DeliberationOrchestrator(providers, settings_with_critique, router=_always_high_router())
+    result = await orchestrator.run("question")
+
+    assert result.disagreement.level == DisagreementLevel.DISAGREEMENT
+    assert any("contradice" in item for item in result.disagreement.evidence)
 
 
 @pytest.mark.asyncio
@@ -244,3 +270,4 @@ async def test_orchestrator_enable_cross_critique_false_skips_critique_round(set
 
     assert result.critiques == []
     assert critic.run.await_count == 0
+    assert result.disagreement.level == DisagreementLevel.NOT_APPLICABLE

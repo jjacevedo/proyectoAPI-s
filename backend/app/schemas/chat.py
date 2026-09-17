@@ -36,3 +36,6 @@ class ChatResponse(BaseModel):
     latency_ms: float
     complexity: str
     routing_reason: str
+    disagreement_level: str
+    disagreement_reason: str
+    disagreement_evidence: list[str]

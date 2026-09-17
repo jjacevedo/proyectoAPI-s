@@ -66,4 +66,7 @@ async def chat(
         latency_ms=result.latency_ms,
         complexity=result.routing.complexity.value,
         routing_reason=result.routing.reason,
+        disagreement_level=result.disagreement.level.value,
+        disagreement_reason=result.disagreement.reason,
+        disagreement_evidence=result.disagreement.evidence,
     )

@@ -21,7 +21,7 @@ Implementada en este scaffold:
 - [x] Clasificación de tareas (`TaskRouter`, heurística por palabras clave y longitud).
 - [x] Selección dinámica de modelos (1/2/3 según complejidad, orden configurable por costo).
 - [x] Crítica cruzada (`CrossCritic`, cada provider exitoso revisa a los demás; se salta con <2 exitosos o `enable_cross_critique=false`).
-- [ ] Detección de desacuerdos.
+- [x] Detección de desacuerdos (`DisagreementDetector`, deriva la señal del contenido de las críticas; alimenta al `Synthesizer` cuando detecta contradicción).
 - [ ] Múltiples rondas de deliberación.
 - [ ] Rate limiting y controles de presupuesto más avanzados.
 

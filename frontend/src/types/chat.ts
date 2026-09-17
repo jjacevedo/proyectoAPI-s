@@ -29,4 +29,7 @@ export type ChatResponse = {
   latency_ms: number;
   complexity: string;
   routing_reason: string;
+  disagreement_level: string;
+  disagreement_reason: string;
+  disagreement_evidence: string[];
 };

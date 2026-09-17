@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChatForm } from '@/components/ChatForm';
 import { CritiquesAccordion } from '@/components/CritiquesAccordion';
+import { DisagreementNotice } from '@/components/DisagreementNotice';
 import { FinalAnswer } from '@/components/FinalAnswer';
 import { IndividualResponsesAccordion } from '@/components/IndividualResponsesAccordion';
 import { ModelsParticipated } from '@/components/ModelsParticipated';
@@ -46,6 +47,11 @@ export default function Home() {
           <div className="card meta">
             Complejidad detectada: {response.complexity} ({response.routing_reason})
           </div>
+          <DisagreementNotice
+            disagreement_level={response.disagreement_level}
+            disagreement_reason={response.disagreement_reason}
+            disagreement_evidence={response.disagreement_evidence}
+          />
         </>
       )}
     </main>

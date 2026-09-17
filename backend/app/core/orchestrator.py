@@ -3,6 +3,7 @@ import time
 
 from app.config import Settings
 from app.core.critic import CrossCritic, Critique
+from app.core.disagreement import DisagreementAssessment, DisagreementDetector, DisagreementLevel
 from app.core.router import RoutingDecision, TaskRouter
 from app.core.synthesizer import Synthesizer
 from app.providers.base import LLMProvider, LLMResponse
@@ -10,6 +11,14 @@ from app.providers.base import LLMProvider, LLMResponse
 
 class AllProvidersFailedError(RuntimeError):
     pass
+
+
+def _default_disagreement_assessment() -> DisagreementAssessment:
+    return DisagreementAssessment(
+        level=DisagreementLevel.NOT_APPLICABLE,
+        reason="No hubo ronda de crítica cruzada (menos de 2 respuestas exitosas o crítica desactivada)",
+        evidence=[],
+    )
 
 
 class DeliberationResult:
@@ -20,12 +29,14 @@ class DeliberationResult:
         latency_ms: float,
         routing: RoutingDecision,
         critiques: list[Critique] | None = None,
+        disagreement: DisagreementAssessment | None = None,
     ) -> None:
         self.final_answer = final_answer
         self.responses = responses
         self.latency_ms = latency_ms
         self.routing = routing
         self.critiques = critiques or []
+        self.disagreement = disagreement or _default_disagreement_assessment()
 
 
 class DeliberationOrchestrator:
@@ -35,11 +46,13 @@ class DeliberationOrchestrator:
         settings: Settings,
         router: TaskRouter | None = None,
         critic: CrossCritic | None = None,
+        disagreement_detector: DisagreementDetector | None = None,
     ) -> None:
         self.providers = providers
         self.settings = settings
         self.router = router or TaskRouter()
         self.critic = critic or CrossCritic(settings.max_tokens_per_request)
+        self.disagreement_detector = disagreement_detector or DisagreementDetector()
 
     async def _call_provider(self, provider: LLMProvider, prompt: str) -> LLMResponse:
         try:
@@ -140,13 +153,15 @@ class DeliberationOrchestrator:
                         )
                     )
 
+        disagreement = self.disagreement_detector.assess(critiques)
+
         synthesizer_provider = active_providers.get(self.settings.synthesizer_provider)
         if synthesizer_provider is None:
             synthesizer_provider = next(iter(active_providers.values()))
 
         synthesis = await asyncio.wait_for(
             Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
-                prompt, successful, critiques
+                prompt, successful, critiques, disagreement
             ),
             timeout=self.settings.provider_timeout_seconds,
         )
@@ -164,4 +179,5 @@ class DeliberationOrchestrator:
             latency_ms=(time.perf_counter() - started) * 1000,
             routing=decision,
             critiques=critiques,
+            disagreement=disagreement,
         )
