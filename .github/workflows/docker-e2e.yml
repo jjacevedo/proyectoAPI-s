@@ -13,7 +13,16 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - '.github/workflows/docker-e2e.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      provider_priority_override:
+        description: >-
+          Optional PROVIDER_PRIORITY override for this manual run only (e.g.
+          "nvidia" or "opencode" to force the smoke test to use ONLY that
+          provider, isolating it for diagnosis). Leave empty for the normal
+          default order.
+        required: false
+        default: ""
 
 jobs:
   e2e:
@@ -30,12 +39,16 @@ jobs:
           ROQ_API_KEY=${{ secrets.ROQ_API_KEY }}
           CEREBRAS_API_KEY=${{ secrets.CEREBRAS_API_KEY }}
           NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}
+          OPENCODE_API_KEY=${{ secrets.OPENCODE_API_KEY }}
           POSTGRES_DB=multillm
           POSTGRES_USER=multillm
           POSTGRES_PASSWORD=multillm
           DATABASE_URL=postgresql+asyncpg://multillm:multillm@postgres:5432/multillm
           NEXT_PUBLIC_API_URL=http://localhost:8000
           EOF
+          if [ -n "${{ inputs.provider_priority_override }}" ]; then
+            echo "PROVIDER_PRIORITY=${{ inputs.provider_priority_override }}" >> .env
+          fi
 
       - name: Build images
         run: docker compose build
@@ -88,7 +101,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"prompt":"Diseña una arquitectura de microservicios escalable y segura, comparando alternativas"}')
           cat response_high.json | python3 -m json.tool
-          echo "HTTP $http_code (high complexity -> should try 3 free providers: cerebras, gemini, groq)"
+          echo "HTTP $http_code (high complexity -> tries the first 3 in PROVIDER_PRIORITY; default is cerebras, gemini, groq)"
 
       - name: Verify request_logs table was migrated
         run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'

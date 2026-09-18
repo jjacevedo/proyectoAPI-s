@@ -31,15 +31,16 @@
                 (clasifica y elige 1, 2 o 3 providers,
                  priorizando los gratuitos via provider_priority)
                               |
-                +-------------+-------------+-------------+
-                |             |             |             |
-                v             v             v             v
-          +----------+  +----------+  +----------+  +----------+
-          | Cerebras |  |  Gemini  |  |   Groq   |  |  NVIDIA  |
-          +-----+----+  +----+-----+  +----+-----+  +----+-----+
-                |             |             |             |
-                +-------------+-------------+-------------+
-                (OpenAI disponible como respaldo de pago;
+                +-------------+-------------+-------------+-------------+
+                |             |             |             |             |
+                v             v             v             v             v
+          +----------+  +----------+  +----------+  +----------+  +----------+
+          | Cerebras |  |  Gemini  |  |   Groq   |  |  NVIDIA  |  | OpenCode |
+          +-----+----+  +----+-----+  +----+-----+  +----+-----+  +----+-----+
+                |             |             |             |             |
+                +-------------+-------------+-------------+-------------+
+                (solo se usan hasta 3 por request, segun provider_priority;
+                 OpenAI disponible como respaldo de pago;
                  Anthropic disponible pero inactivo por defecto)
                               |
                               v
@@ -96,16 +97,16 @@
 |OpenAIProvider| |AnthropicProvider| | GeminiProvider | | OpenAICompatibleProvider|
 +------------+ +------------+ +----------------+ +-----------+-------------+
  (activo,       (inactivo por                          |
-  de pago)       defecto, de pago)      +---------------+---------------+
-                                         |               |               |
-                                         v               v               v
-                                  +-------------+ +-----------------+ +---------------+
-                                  | GroqProvider| | CerebrasProvider| | NvidiaProvider|
-                                  +-------------+ +-----------------+ +---------------+
-                                    (gratis)         (gratis)           (gratis)
+  de pago)       defecto, de pago)      +---------------+---------------+---------------+
+                                         |               |               |               |
+                                         v               v               v               v
+                                  +-------------+ +-----------------+ +---------------+ +-----------------+
+                                  | GroqProvider| | CerebrasProvider| | NvidiaProvider| | OpenCodeProvider|
+                                  +-------------+ +-----------------+ +---------------+ +-----------------+
+                                    (gratis)         (gratis)           (gratis)         (gratis/promocional)
 ```
 
-El orquestador depende exclusivamente de `LLMProvider`. Cada adaptador traduce el contrato común al SDK oficial de su proveedor. `GroqProvider`, `CerebrasProvider` y `NvidiaProvider` comparten una única implementación (`OpenAICompatibleProvider`, en `backend/app/providers/openai_compatible_provider.py`) porque los tres exponen un endpoint `/chat/completions` compatible con la API de OpenAI — solo difieren en `base_url` y `provider_name`. Esto evita que el router o el sintetizador tengan lógica específica de ningún proveedor concreto.
+El orquestador depende exclusivamente de `LLMProvider`. Cada adaptador traduce el contrato común al SDK oficial de su proveedor. `GroqProvider`, `CerebrasProvider`, `NvidiaProvider` y `OpenCodeProvider` comparten una única implementación (`OpenAICompatibleProvider`, en `backend/app/providers/openai_compatible_provider.py`) porque los cuatro exponen un endpoint `/chat/completions` compatible con la API de OpenAI — solo difieren en `base_url` y `provider_name`. Esto evita que el router o el sintetizador tengan lógica específica de ningún proveedor concreto.
 
 **Nota sobre `ROQ_API_KEY`:** por decisión explícita del dueño del repositorio, la variable de entorno/secret real para la API key de Groq se llama `ROQ_API_KEY` (sin la primera "G"), no `GROQ_API_KEY`. `Settings.groq_api_key` (`backend/app/config.py`) usa `validation_alias="ROQ_API_KEY"` para leer ese nombre exacto — el atributo interno se sigue llamando `groq_api_key` para que el resto del código no tenga que lidiar con el typo, pero la variable de entorno que hay que configurar en `.env`/GitHub Secrets es `ROQ_API_KEY`.
 
@@ -115,7 +116,7 @@ Cada llamada captura errores del SDK y produce un `LLMResponse` con `error`. `as
 
 ## Router inteligente (v2)
 
-`TaskRouter.classify()` clasifica el prompt en `low`/`medium`/`high` usando heurísticas simples (palabras clave y longitud, ver `backend/app/core/router.py`) y decide cuántos providers usar (1/2/3). `select_providers()` elige el subconjunto según `settings.provider_priority` (por defecto `cerebras,gemini,groq,nvidia,openai`: los 4 proveedores gratuitos primero, OpenAI de pago como respaldo solo si el router necesita más providers de los que hay gratis disponibles o si a alguno le falta su API key). El orquestador llama al router en cada `run()`, así que el mismo `DeliberationOrchestrator` sirve tanto para un prompt trivial (1 provider) como para uno complejo (3 providers + síntesis), sin que el endpoint tenga que decidir nada. La decisión de enrutamiento (`complexity`, `routing_reason`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia.
+`TaskRouter.classify()` clasifica el prompt en `low`/`medium`/`high` usando heurísticas simples (palabras clave y longitud, ver `backend/app/core/router.py`) y decide cuántos providers usar (1/2/3). `select_providers()` elige el subconjunto según `settings.provider_priority` (por defecto `cerebras,gemini,groq,nvidia,opencode,openai`: los 5 proveedores gratuitos primero, OpenAI de pago como respaldo solo si el router necesita más providers de los que hay gratis disponibles o si a alguno le falta su API key). Como el router nunca selecciona más de 3 providers por request, con 5 opciones gratuitas en la lista los últimos 2 (`nvidia`, `opencode` en el orden por defecto) solo se prueban si alguno anterior en la prioridad no tiene su API key configurada. El orquestador llama al router en cada `run()`, así que el mismo `DeliberationOrchestrator` sirve tanto para un prompt trivial (1 provider) como para uno complejo (3 providers + síntesis), sin que el endpoint tenga que decidir nada. La decisión de enrutamiento (`complexity`, `routing_reason`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia.
 
 Esto es deliberadamente una heurística, no un clasificador con IA: mantiene el costo de clasificar cerca de cero y es suficiente para el objetivo del documento de diseño (no gastar 3 modelos en una pregunta simple). Un clasificador más sofisticado (o basado en LLM) puede reemplazar `TaskRouter.classify()` sin tocar el orquestador ni los providers.
 

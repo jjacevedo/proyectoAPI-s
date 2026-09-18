@@ -5,6 +5,7 @@ from app.providers.cerebras_provider import CerebrasProvider
 from app.providers.gemini_provider import GeminiProvider
 from app.providers.groq_provider import GroqProvider
 from app.providers.nvidia_provider import NvidiaProvider
+from app.providers.opencode_provider import OpenCodeProvider
 from app.providers.openai_provider import OpenAIProvider
 
 
@@ -22,4 +23,6 @@ def build_providers(settings: Settings) -> dict[str, LLMProvider]:
         providers["cerebras"] = CerebrasProvider(settings.cerebras_api_key, settings.cerebras_model)
     if settings.nvidia_api_key:
         providers["nvidia"] = NvidiaProvider(settings.nvidia_api_key, settings.nvidia_model)
+    if settings.opencode_api_key:
+        providers["opencode"] = OpenCodeProvider(settings.opencode_api_key, settings.opencode_model)
     return providers
