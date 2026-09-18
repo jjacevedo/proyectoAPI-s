@@ -1,0 +1,9 @@
+.line {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 12px;
+}
+
+.failed {
+  color: var(--terracotta);
+}

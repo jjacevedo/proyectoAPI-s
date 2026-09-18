@@ -1,0 +1,66 @@
+.card {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-heading);
+}
+
+.pillRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pill {
+  padding: 6px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.pillGreen {
+  background: var(--green-bg);
+  border-color: var(--green-border-soft);
+  color: var(--green);
+}
+
+.pillTerracotta {
+  background: var(--terracotta-bg);
+  border-color: var(--terracotta-border-soft);
+  color: var(--terracotta);
+}
+
+.pillAmber {
+  background: var(--amber-bg-strong);
+  border-color: var(--amber-border-soft);
+  color: var(--amber);
+}
+
+.reasoning {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.errorText {
+  font-size: 13px;
+  color: var(--terracotta);
+  margin: 0;
+}

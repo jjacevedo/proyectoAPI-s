@@ -1,0 +1,28 @@
+.card {
+  background: var(--surface-medium);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+}
+
+.value {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-heading);
+  line-height: 1;
+}
+
+.sublabel {
+  font-size: 11px;
+  color: var(--text-faintest);
+  margin-top: 6px;
+}

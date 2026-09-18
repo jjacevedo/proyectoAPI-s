@@ -1,0 +1,93 @@
+/* Estilos compartidos por los paneles de detalle (respuestas individuales, críticas, revisiones,
+   verificación) que se muestran dentro de ExpandableSections. Viven en un módulo común porque los
+   9 componentes que los usan repiten la misma estructura visual (encabezado + <details> + meta). */
+
+.panel {
+  margin-top: 4px;
+}
+
+.panel + .panel {
+  margin-top: 20px;
+}
+
+.heading {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-heading);
+  margin: 0 0 10px;
+}
+
+.detail {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.detail summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.detail summary::marker {
+  color: var(--text-faint);
+}
+
+.response {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 13px;
+  color: var(--text-body);
+  margin-top: 8px;
+}
+
+.pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  color: var(--text-body);
+  margin-top: 8px;
+}
+
+.meta {
+  color: var(--text-faint);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.error {
+  color: var(--terracotta);
+  white-space: pre-wrap;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badge {
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.badgeError {
+  border-color: var(--terracotta-border-soft);
+  color: var(--terracotta);
+}
+
+.list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}

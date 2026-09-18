@@ -1,0 +1,21 @@
+.userRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 28px;
+}
+
+.userBubble {
+  max-width: 580px;
+  padding: 16px 20px;
+  background: var(--user-bubble);
+  border-radius: 16px 16px 4px 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-heading);
+  white-space: pre-wrap;
+}
+
+.assistantMessage {
+  max-width: 680px;
+  margin-bottom: 28px;
+}

@@ -36,7 +36,7 @@ jobs:
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-          ROQ_API_KEY=${{ secrets.ROQ_API_KEY }}
+          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY=${{ secrets.CEREBRAS_API_KEY }}
           NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}
           OPENCODE_API_KEY=${{ secrets.OPENCODE_API_KEY }}
@@ -101,7 +101,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"prompt":"Diseña una arquitectura de microservicios escalable y segura, comparando alternativas"}')
           cat response_high.json | python3 -m json.tool
-          echo "HTTP $http_code (high complexity -> tries the first 3 in PROVIDER_PRIORITY; default is cerebras, gemini, groq)"
+          echo "HTTP $http_code (high complexity -> tries the first 3 in PROVIDER_PRIORITY; default is gemini, groq, nvidia)"
 
       - name: Verify request_logs table was migrated
         run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'
