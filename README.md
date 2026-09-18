@@ -28,6 +28,9 @@ El MVP no implementa todavía router inteligente, crítica cruzada ni verificaci
 
 ## Quickstart
 
+> ¿Vas a correr esto por primera vez o se lo vas a pasar a alguien más?
+> Ver [COMO_CORRERLO.md](COMO_CORRERLO.md) — guía paso a paso para Windows, Mac y Linux.
+
 ```bash
 cp .env.example .env
 # completa las API keys y, si quieres, cambia los modelos
@@ -70,7 +73,8 @@ El contenedor de backend ejecuta la migración automáticamente al arrancar.
 - Cada proveedor tiene timeout.
 - El output está limitado server-side por `MAX_TOKENS_PER_REQUEST`.
 
-No se implementa rate limiting en el MVP; está contemplado para v2.
+Rate limiting y presupuesto diario ya están implementados (`ENABLE_RATE_LIMITING` y
+`DAILY_BUDGET_USD` en `.env.example`), pero quedan desactivados por defecto en el MVP.
 
 ## Licencia
 
