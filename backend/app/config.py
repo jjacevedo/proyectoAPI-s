@@ -24,18 +24,21 @@ class Settings(BaseSettings):
     cerebras_api_key: str | None = None
     cerebras_model: str = "gpt-oss-120b"
     nvidia_api_key: str | None = None
-    # 4 intentos previos, los 4 fallaron con evidencia real de la API
-    # (nunca adivinados sin confirmar despues):
+    # 5 intentos, los 5 confirmados no funcionales con evidencia real de la
+    # API (nunca adivinados sin confirmar despues):
     #   1. "meta/llama-3.1-70b-instruct"        -> 410 Gone (EOL 2026-08-26)
     #   2. "meta/llama-3.3-70b-instruct"        -> 410 Gone (EOL 2026-08-26)
     #   3. "meta/llama-4-scout-17b-16e-instruct" -> 404 Not Found
     #   4. "meta/llama-4-maverick-17b-128e-instruct" -> 410 Gone (EOL
     #      2026-07-27), pese a venir de busqueda web como "modelo destacado".
-    # Quinto intento, mejor evidencia esta vez: "z-ai/glm-5.3", copiado
-    # directo de un ejemplo de codigo real generado por build.nvidia.com
-    # (panel "Try it" de la propia pagina del modelo, con SDK de OpenAI
-    # igual al que usa este provider) -- AUN SIN CONFIRMAR con una llamada
-    # real, pendiente de verificar en CI.
+    #   5. "z-ai/glm-5.3" -> TimeoutError puro (nunca responde), copiado de
+    #      un ejemplo de codigo real de build.nvidia.com. Se descarto
+    #      cold-start subiendo PROVIDER_TIMEOUT_SECONDS de 45s a 90s en un
+    #      run de CI aislado: fallo igual, escalando exacto con el timeout
+    #      configurado -- nunca llega respuesta real, no es solo lento.
+    # Se deja de intentar adivinar mas IDs: reactivar NVIDIA requiere
+    # confirmar un model ID vigente directamente en build.nvidia.com
+    # (bloqueado en algunos sandboxes de desarrollo) con una llamada real.
     nvidia_model: str = "z-ai/glm-5.3"
     opencode_api_key: str | None = None
     # opencode.ai/zen: "big-pickle" es un modelo gratis por tiempo limitado
