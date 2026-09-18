@@ -1,4 +1,5 @@
 import type { CalculationVerificationResponse } from '@/types/chat';
+import styles from './panels.module.css';
 
 type Props = {
   referenceCalculation: string | null;
@@ -9,16 +10,16 @@ export function CalculationVerificationPanel({ referenceCalculation, verificatio
   if (verifications.length === 0) return null;
 
   return (
-    <section className="card">
-      <h2>Verificación de cálculo (valor de referencia independiente, no opinión)</h2>
+    <div className={styles.panel}>
+      <h3 className={styles.heading}>Verificación de cálculo (valor de referencia independiente, no opinión)</h3>
       {referenceCalculation && (
-        <details>
+        <details className={styles.detail}>
           <summary>Script de cálculo generado</summary>
-          <pre className="response">{referenceCalculation}</pre>
+          <pre className={styles.pre}>{referenceCalculation}</pre>
         </details>
       )}
       {verifications.map((verification, index) => (
-        <details key={`${verification.provider}-${verification.model}-${index}`}>
+        <details key={`${verification.provider}-${verification.model}-${index}`} className={styles.detail}>
           <summary>
             {verification.provider} / {verification.model}:{' '}
             {verification.error
@@ -27,9 +28,9 @@ export function CalculationVerificationPanel({ referenceCalculation, verificatio
                 ? `COINCIDE (${verification.reference_value})`
                 : `DIFIERE (dijo ${verification.candidate_value}, referencia ${verification.reference_value})`}
           </summary>
-          {verification.error && <p className="error">{verification.error}</p>}
+          {verification.error && <p className={styles.error}>{verification.error}</p>}
         </details>
       ))}
-    </section>
+    </div>
   );
 }

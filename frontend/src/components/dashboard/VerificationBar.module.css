@@ -1,0 +1,42 @@
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.label {
+  font-size: 12px;
+  color: var(--text-quaternary);
+}
+
+.valueGreen {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.valueAmber {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+.track {
+  height: 6px;
+  background: var(--surface-strong);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fillGreen {
+  height: 100%;
+  background: var(--green-fill);
+  border-radius: 3px;
+}
+
+.fillAmber {
+  height: 100%;
+  background: var(--amber-fill);
+  border-radius: 3px;
+}

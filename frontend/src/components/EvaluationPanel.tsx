@@ -1,61 +1,75 @@
 import type { EvaluateResponse } from '@/types/evaluate';
+import { formatCost, formatDelta, formatTokens } from '@/lib/format';
+import styles from './EvaluationPanel.module.css';
 
 type Props = {
   evaluation: EvaluateResponse;
 };
 
-function formatCost(value: number | null): string {
-  return value == null ? 'N/D' : `$${value.toFixed(6)}`;
-}
-
-function formatDelta(value: number, unit: string): string {
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${value.toFixed(unit === 'ms' ? 0 : 6)} ${unit}`;
-}
-
 export function EvaluationPanel({ evaluation }: Props) {
   return (
     <>
-      <section className="card">
-        <h2>Respuesta de un solo LLM ({evaluation.single_provider})</h2>
-        {evaluation.single_error ? (
-          <p className="error">{evaluation.single_error}</p>
-        ) : (
-          <p>{evaluation.single_answer}</p>
-        )}
-        <p className="meta">
-          Modelo: {evaluation.single_model} · Tokens: {evaluation.single_tokens} · Costo: {formatCost(evaluation.single_cost_estimated_usd)} · Latencia: {evaluation.single_latency_ms.toFixed(0)} ms
-        </p>
-      </section>
+      <div className={styles.grid}>
+        <div className={styles.column}>
+          <div className={styles.columnHeader}>
+            <span className={styles.columnLabel}>Single LLM</span>
+            <span className={styles.providerBadge}>{evaluation.single_provider}</span>
+          </div>
+          {evaluation.single_error ? (
+            <p className={styles.errorText}>{evaluation.single_error}</p>
+          ) : (
+            <div className={styles.answer}>{evaluation.single_answer}</div>
+          )}
+          <div className={styles.statsRow}>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>Tokens</span>
+              <span className={styles.statValue}>{formatTokens(evaluation.single_tokens)}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>Costo</span>
+              <span className={styles.statValue}>{formatCost(evaluation.single_cost_estimated_usd)}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>Latencia</span>
+              <span className={styles.statValue}>{evaluation.single_latency_ms.toFixed(0)}ms</span>
+            </div>
+          </div>
+        </div>
 
-      <section className="card">
-        <h2>Respuesta multi-LLM (deliberación)</h2>
-        <p>{evaluation.multi_answer}</p>
-        <p className="meta">
-          Tokens: {evaluation.multi_tokens} · Costo: {formatCost(evaluation.multi_cost_estimated_usd)} · Latencia: {evaluation.multi_latency_ms.toFixed(0)} ms
-        </p>
-      </section>
+        <div className={styles.column}>
+          <div className={styles.columnHeader}>
+            <span className={styles.columnLabel}>Multi-LLM</span>
+          </div>
+          <div className={styles.answer}>{evaluation.multi_answer}</div>
+          <div className={styles.statsRow}>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>Tokens</span>
+              <span className={styles.statValue}>{formatTokens(evaluation.multi_tokens)}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>Costo</span>
+              <span className={styles.statValue}>{formatCost(evaluation.multi_cost_estimated_usd)}</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>Latencia</span>
+              <span className={styles.statValue}>{evaluation.multi_latency_ms.toFixed(0)}ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <section className="card">
-        <h2>Comparación</h2>
-        <p className="meta">
-          Δ Tokens: {formatDelta(evaluation.token_delta, 'tokens')} · Δ Costo: {evaluation.cost_delta_usd == null ? 'N/D' : formatDelta(evaluation.cost_delta_usd, 'USD')} · Δ Latencia: {formatDelta(evaluation.latency_delta_ms, 'ms')}
-        </p>
-        {evaluation.judge_error && <p className="error">Juez no disponible: {evaluation.judge_error}</p>}
-        {evaluation.judge_verdict && (
-          <>
-            <p>
-              <strong>Veredicto del juez:</strong>{' '}
-              {evaluation.judge_verdict === 'multi'
-                ? 'la respuesta multi-LLM es mejor'
-                : evaluation.judge_verdict === 'single'
-                  ? 'la respuesta de un solo LLM es mejor'
-                  : 'empate entre ambas respuestas'}
-            </p>
-            {evaluation.judge_reasoning && <p>{evaluation.judge_reasoning}</p>}
-          </>
-        )}
-      </section>
+      <div className={styles.deltaRow}>
+        <span>
+          Δ Tokens <strong>{formatDelta(evaluation.token_delta, 'tokens')}</strong>
+        </span>
+        <span>
+          Δ Costo{' '}
+          <strong>{evaluation.cost_delta_usd == null ? 'N/D' : formatDelta(evaluation.cost_delta_usd, 'USD')}</strong>
+        </span>
+        <span>
+          Δ Latencia <strong>{formatDelta(evaluation.latency_delta_ms, 'ms')}</strong>
+        </span>
+      </div>
     </>
   );
 }

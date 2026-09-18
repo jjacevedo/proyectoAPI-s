@@ -1,0 +1,193 @@
+.wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 32px;
+}
+
+.header {
+  padding: 28px 40px 0;
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.backButton {
+  font-size: 12px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.status {
+  padding: 0 40px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.errorText {
+  padding: 0 40px;
+  font-size: 13px;
+  color: var(--terracotta);
+}
+
+.kpiRow {
+  padding: 24px 40px 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.section {
+  padding: 20px 40px 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-heading);
+  margin: 0 0 16px;
+}
+
+.taskGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.taskCard {
+  background: var(--surface);
+  border: 1px solid var(--border-lighter);
+  border-radius: var(--radius-md);
+  padding: 18px;
+}
+
+.taskCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.taskName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.taskCount {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.taskStats {
+  display: flex;
+  gap: 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.proportionTrack {
+  margin-top: 10px;
+  height: 4px;
+  background: var(--surface-strong);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.proportionFill {
+  height: 100%;
+  background: rgba(242, 233, 220, 0.25);
+  border-radius: 2px;
+}
+
+.complexityRow {
+  display: flex;
+  gap: 12px;
+}
+
+.complexityCard {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border-lighter);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  text-align: center;
+}
+
+.complexityLabel {
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.complexityCount {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.complexitySub {
+  font-size: 11px;
+  color: var(--text-faintest);
+  margin-top: 4px;
+}
+
+.bottomGrid {
+  padding: 20px 40px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-lighter);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.verificationBars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.footerLine {
+  font-size: 11px;
+  color: var(--text-faintest);
+  margin-top: 12px;
+}
+
+.deltaFooter {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-faintest);
+  flex-wrap: wrap;
+}
