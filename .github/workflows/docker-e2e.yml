@@ -23,6 +23,14 @@ on:
           default order.
         required: false
         default: ""
+      provider_timeout_override:
+        description: >-
+          Optional PROVIDER_TIMEOUT_SECONDS override for this manual run only
+          (e.g. "90" to rule out a slow/cold-start model before concluding a
+          candidate model ID is actually invalid). Leave empty for the normal
+          default (45s).
+        required: false
+        default: ""
 
 jobs:
   e2e:
@@ -48,6 +56,9 @@ jobs:
           EOF
           if [ -n "${{ inputs.provider_priority_override }}" ]; then
             echo "PROVIDER_PRIORITY=${{ inputs.provider_priority_override }}" >> .env
+          fi
+          if [ -n "${{ inputs.provider_timeout_override }}" ]; then
+            echo "PROVIDER_TIMEOUT_SECONDS=${{ inputs.provider_timeout_override }}" >> .env
           fi
 
       - name: Build images
