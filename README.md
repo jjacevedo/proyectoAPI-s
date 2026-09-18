@@ -24,8 +24,7 @@ El MVP no implementa todavía router inteligente, crítica cruzada ni verificaci
 ## Requisitos
 
 - Docker y Docker Compose
-- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)), Cerebras ([cloud.cerebras.ai](https://cloud.cerebras.ai)), NVIDIA NIM ([build.nvidia.com](https://build.nvidia.com)), OpenCode Zen ([opencode.ai](https://opencode.ai)) y/o Google AI Studio (Gemini). Ninguno debería requerir tarjeta de crédito, pero confírmalo en tu propio registro. OpenCode Zen en particular ofrece modelos gratis **por tiempo limitado** (promocional, ej. `big-pickle`), no un tier gratuito permanente garantizado.
-- **Nota sobre la variable de Groq:** por decisión explícita del dueño del repo, la variable de entorno/secret se llama `ROQ_API_KEY` (sin la primera "G"), no `GROQ_API_KEY`. `app/config.py` lee ese nombre exacto vía alias — no es un error de este README.
+- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)), Cerebras ([cloud.cerebras.ai](https://cloud.cerebras.ai)), NVIDIA NIM ([build.nvidia.com](https://build.nvidia.com)), OpenCode Zen ([opencode.ai](https://opencode.ai)) y/o Google AI Studio (Gemini). Ninguno debería requerir tarjeta de crédito, pero confírmalo en tu propio registro. OpenCode Zen en particular ofrece modelos gratis **por tiempo limitado** (promocional, ej. `big-pickle`), no un tier gratuito permanente garantizado — y su tier gratis solo acepta llamadas desde el propio cliente de OpenCode, no desde integraciones de terceros como esta (confirmado con un 403 real).
 - OpenAI (de pago) y Anthropic (de pago) siguen soportados — agrega su API key en `.env` para reactivarlos.
 
 ## Quickstart
