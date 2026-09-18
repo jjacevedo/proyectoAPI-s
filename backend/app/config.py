@@ -24,14 +24,17 @@ class Settings(BaseSettings):
     cerebras_api_key: str | None = None
     cerebras_model: str = "gpt-oss-120b"
     nvidia_api_key: str | None = None
-    # "meta/llama-3.1-70b-instruct" (default original) y su reemplazo
-    # sugerido "meta/llama-3.3-70b-instruct" AMBOS llegaron a su fin de vida
-    # el 26 de agosto de 2026 -- confirmado con un 410 Gone real de la API
-    # en produccion para los dos. Se cambio a un modelo de generacion mas
-    # nueva (Llama 4) para reducir el riesgo de otra deprecacion inmediata.
-    # Verificar en build.nvidia.com antes de depender de este default:
-    # el catalogo de NIM cambia con frecuencia.
-    nvidia_model: str = "meta/llama-4-scout-17b-16e-instruct"
+    # Intentos previos, todos fallaron con evidencia real de la API:
+    # "meta/llama-3.1-70b-instruct" y "meta/llama-3.3-70b-instruct" -> 410
+    # Gone (fin de vida real, 26 de agosto de 2026); "meta/llama-4-scout-
+    # 17b-16e-instruct" -> 404 (no encontrado). Cuarto intento:
+    # "meta/llama-4-maverick-17b-128e-instruct", el modelo gratis destacado
+    # actualmente en build.nvidia.com segun su propia pagina de referencia de
+    # API (docs.api.nvidia.com/nim/reference/meta-llama-4-maverick-17b-128e-
+    # instruct) -- AUN SIN CONFIRMAR con una llamada real, pendiente de
+    # verificar en CI. Verificar en build.nvidia.com antes de depender de
+    # este default: el catalogo de NIM cambia con frecuencia.
+    nvidia_model: str = "meta/llama-4-maverick-17b-128e-instruct"
     opencode_api_key: str | None = None
     # opencode.ai/zen: "big-pickle" es un modelo gratis por tiempo limitado
     # (promocional, no un tier gratuito permanente) -- verificar en

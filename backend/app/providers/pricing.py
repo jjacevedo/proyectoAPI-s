@@ -41,6 +41,7 @@ PRICING: dict[str, ModelPricing] = {
     "meta/llama-3.1-70b-instruct": ModelPricing(0.0, 0.0),
     "meta/llama-3.3-70b-instruct": ModelPricing(0.0, 0.0),
     "meta/llama-4-scout-17b-16e-instruct": ModelPricing(0.0, 0.0),
+    "meta/llama-4-maverick-17b-128e-instruct": ModelPricing(0.0, 0.0),
     # OpenCode Zen (opencode.ai/zen): "big-pickle" es promocional/gratis por
     # tiempo limitado, no un tier gratuito permanente garantizado.
     "big-pickle": ModelPricing(0.0, 0.0),
