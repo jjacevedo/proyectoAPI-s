@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,12 +15,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.1-flash-lite"
-    # El secret real en GitHub Actions/entornos de este proyecto se llama
-    # ROQ_API_KEY (typo de nacimiento, dejado asi a proposito por el dueño
-    # del repo en vez de renombrarlo) -- el alias hace que el campo interno
-    # se siga llamando groq_api_key/GROQ_API_KEY para quien lea el codigo,
-    # pero lea la variable de entorno real ROQ_API_KEY.
-    groq_api_key: str | None = Field(default=None, validation_alias="ROQ_API_KEY")
+    # Acepta tanto GROQ_API_KEY como el alias historico ROQ_API_KEY
+    groq_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("GROQ_API_KEY", "ROQ_API_KEY")
+    )
     # "llama-3.3-70b-versatile" fue el default original, pero Groq lo movio a
     # tier Enterprise (ya no responde con una key de developer/free) el 17 de
     # junio de 2026 -- confirmado con un 404 model_not_found real en produccion.

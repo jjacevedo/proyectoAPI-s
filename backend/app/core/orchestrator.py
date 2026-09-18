@@ -467,18 +467,32 @@ class DeliberationOrchestrator:
                     )
                 )
 
-        synthesis = await asyncio.wait_for(
-            Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
-                prompt,
-                successful,
-                critiques,
-                disagreement,
-                code_verifications,
-                calculation_verifications,
-                fact_search_results,
-            ),
-            timeout=self.settings.provider_timeout_seconds,
-        )
+        try:
+            synthesis = await asyncio.wait_for(
+                Synthesizer(synthesizer_provider, self.settings.max_tokens_per_request).run(
+                    prompt,
+                    successful,
+                    critiques,
+                    disagreement,
+                    code_verifications,
+                    calculation_verifications,
+                    fact_search_results,
+                ),
+                timeout=self.settings.provider_timeout_seconds,
+            )
+        except TimeoutError:
+            synthesis = LLMResponse(
+                provider=synthesizer_provider.provider_name,
+                model=synthesizer_provider.model,
+                error=f"Timeout de síntesis tras {self.settings.provider_timeout_seconds}s",
+            )
+        except Exception as exc:
+            synthesis = LLMResponse(
+                provider=synthesizer_provider.provider_name,
+                model=synthesizer_provider.model,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+
         if synthesis.succeeded:
             final_answer = synthesis.content or successful[0].content or ""
             responses.append(synthesis)

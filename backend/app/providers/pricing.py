@@ -13,6 +13,8 @@ PRICING: dict[str, ModelPricing] = {
     "gpt-5.6-terra": ModelPricing(2.00, 12.00),
     "gpt-5.6-sol": ModelPricing(4.00, 20.00),
     "gpt-5.6": ModelPricing(4.00, 20.00),
+    "gpt-4o": ModelPricing(2.50, 10.00),
+    "gpt-4o-mini": ModelPricing(0.15, 0.60),
     "claude-sonnet-5": ModelPricing(2.00, 10.00),
     "claude-opus-5": ModelPricing(5.00, 25.00),
     "claude-haiku-4-5-20251001": ModelPricing(1.00, 5.00),
@@ -21,6 +23,8 @@ PRICING: dict[str, ModelPricing] = {
     "gemini-3.6-flash": ModelPricing(0.75, 3.75),
     "gemini-3.5-flash": ModelPricing(1.50, 9.00),
     "gemini-3.5-flash-lite": ModelPricing(0.30, 2.50),
+    "gemini-2.0-flash": ModelPricing(0.10, 0.40),
+    "gemini-1.5-flash": ModelPricing(0.075, 0.30),
 
     # Defaults gratuitos (Groq/Cerebras/Google AI Studio free tier). $0/$0 para
     # que la UI muestre un costo real de $0 en vez de "N/D" con estos modelos.
