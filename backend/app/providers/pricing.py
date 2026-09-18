@@ -34,7 +34,11 @@ PRICING: dict[str, ModelPricing] = {
     # Groq en su catalogo (GROQ_MODEL, tras la deprecacion de Llama 3.3 70B).
     "openai/gpt-oss-120b": ModelPricing(0.0, 0.0),
     # NVIDIA NIM (build.nvidia.com): tier de desarrollador gratuito.
+    # "meta/llama-3.1-70b-instruct" llego a su fin de vida el 26 ago 2026
+    # (confirmado con un 410 Gone real); se deja el precio $0 por si alguien
+    # lo referencia con una snapshot vieja, pero ya no es el default.
     "meta/llama-3.1-70b-instruct": ModelPricing(0.0, 0.0),
+    "meta/llama-3.3-70b-instruct": ModelPricing(0.0, 0.0),
     # OpenCode Zen (opencode.ai/zen): "big-pickle" es promocional/gratis por
     # tiempo limitado, no un tier gratuito permanente garantizado.
     "big-pickle": ModelPricing(0.0, 0.0),

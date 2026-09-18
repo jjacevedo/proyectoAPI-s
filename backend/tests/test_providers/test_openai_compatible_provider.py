@@ -66,7 +66,7 @@ async def test_cerebras_provider_degrades_on_exception():
 
 @pytest.mark.asyncio
 async def test_nvidia_provider_parses_response():
-    provider = NvidiaProvider("key", "meta/llama-3.1-70b-instruct")
+    provider = NvidiaProvider("key", "meta/llama-3.3-70b-instruct")
     message = MagicMock(content="hello")
     choice = MagicMock(message=message)
     usage = MagicMock(prompt_tokens=2, completion_tokens=4)
@@ -83,7 +83,7 @@ async def test_nvidia_provider_parses_response():
 
 @pytest.mark.asyncio
 async def test_nvidia_provider_degrades_on_exception():
-    provider = NvidiaProvider("key", "meta/llama-3.1-70b-instruct")
+    provider = NvidiaProvider("key", "meta/llama-3.3-70b-instruct")
     provider.client.chat.completions.create = AsyncMock(side_effect=RuntimeError("boom"))
 
     result = await provider.generate("hi", max_tokens=20)

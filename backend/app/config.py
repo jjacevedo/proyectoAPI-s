@@ -31,9 +31,12 @@ class Settings(BaseSettings):
     cerebras_api_key: str | None = None
     cerebras_model: str = "gpt-oss-120b"
     nvidia_api_key: str | None = None
-    # build.nvidia.com (NIM) -- verificar el ID de modelo vigente en la
-    # consola antes de depender de este default en produccion.
-    nvidia_model: str = "meta/llama-3.1-70b-instruct"
+    # "meta/llama-3.1-70b-instruct" fue el default original, pero llego a su
+    # fin de vida el 26 de agosto de 2026 -- confirmado con un 410 Gone real
+    # en produccion. NVIDIA recomienda migrar a "meta/llama-3.3-70b-instruct".
+    # Verificar en build.nvidia.com antes de depender de este nuevo default:
+    # el catalogo de NIM cambia con frecuencia.
+    nvidia_model: str = "meta/llama-3.3-70b-instruct"
     opencode_api_key: str | None = None
     # opencode.ai/zen: "big-pickle" es un modelo gratis por tiempo limitado
     # (promocional, no un tier gratuito permanente) -- verificar en
