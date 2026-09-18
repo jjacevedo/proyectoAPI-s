@@ -30,7 +30,7 @@ services:
       CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
       CEREBRAS_MODEL: ${CEREBRAS_MODEL:-gpt-oss-120b}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-4-maverick-17b-128e-instruct}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-z-ai/glm-5.3}
       OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
       OPENCODE_MODEL: ${OPENCODE_MODEL:-big-pickle}
       SYNTHESIZER_PROVIDER: ${SYNTHESIZER_PROVIDER:-gemini}

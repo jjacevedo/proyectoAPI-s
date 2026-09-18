@@ -24,23 +24,19 @@ class Settings(BaseSettings):
     cerebras_api_key: str | None = None
     cerebras_model: str = "gpt-oss-120b"
     nvidia_api_key: str | None = None
-    # 4 intentos, los 4 fallaron con evidencia real de la API (nunca
-    # adivinados sin confirmar despues):
+    # 4 intentos previos, los 4 fallaron con evidencia real de la API
+    # (nunca adivinados sin confirmar despues):
     #   1. "meta/llama-3.1-70b-instruct"        -> 410 Gone (EOL 2026-08-26)
     #   2. "meta/llama-3.3-70b-instruct"        -> 410 Gone (EOL 2026-08-26)
     #   3. "meta/llama-4-scout-17b-16e-instruct" -> 404 Not Found
     #   4. "meta/llama-4-maverick-17b-128e-instruct" -> 410 Gone (EOL
-    #      2026-07-27) -- este era, segun busqueda web, "el modelo gratis
-    #      destacado actualmente" en una pagina que parecia ser la propia
-    #      referencia de API de NVIDIA; ya llevaba ~2 meses muerto cuando se
-    #      probo. Conclusion: el catalogo de NIM cambia tan rapido que ni
-    #      siquiera fuentes indexadas que aparentan ser oficiales estan al
-    #      dia -- la busqueda web dejo de ser un metodo confiable para elegir
-    #      este default. NO seguir adivinando un quinto: para reactivar
-    #      NVIDIA hace falta que alguien confirme un model ID vigente
-    #      entrando directamente a build.nvidia.com (bloqueado en algunos
-    #      sandboxes de desarrollo) o probando con una key real.
-    nvidia_model: str = "meta/llama-4-maverick-17b-128e-instruct"
+    #      2026-07-27), pese a venir de busqueda web como "modelo destacado".
+    # Quinto intento, mejor evidencia esta vez: "z-ai/glm-5.3", copiado
+    # directo de un ejemplo de codigo real generado por build.nvidia.com
+    # (panel "Try it" de la propia pagina del modelo, con SDK de OpenAI
+    # igual al que usa este provider) -- AUN SIN CONFIRMAR con una llamada
+    # real, pendiente de verificar en CI.
+    nvidia_model: str = "z-ai/glm-5.3"
     opencode_api_key: str | None = None
     # opencode.ai/zen: "big-pickle" es un modelo gratis por tiempo limitado
     # (promocional, no un tier gratuito permanente) -- verificar en
