@@ -101,7 +101,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"prompt":"Diseña una arquitectura de microservicios escalable y segura, comparando alternativas"}')
           cat response_high.json | python3 -m json.tool
-          echo "HTTP $http_code (high complexity -> tries the first 3 in PROVIDER_PRIORITY; default is cerebras, gemini, groq)"
+          echo "HTTP $http_code (high complexity -> tries the first 3 in PROVIDER_PRIORITY; default is gemini, groq, nvidia)"
 
       - name: Verify request_logs table was migrated
         run: docker compose exec -T postgres psql -U multillm -d multillm -c '\d request_logs'

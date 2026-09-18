@@ -2,17 +2,16 @@
 
 Sistema Multi-LLM de Deliberación y Síntesis. MVP con FastAPI + Next.js que consulta varios LLMs en paralelo y sintetiza una respuesta final.
 
-Por defecto usa proveedores **gratuitos** (Cerebras, Google AI Studio/Gemini, Groq, NVIDIA NIM, OpenCode Zen) para esta fase temprana del proyecto, más OpenAI activo como respaldo (de pago, pero ya verificado funcionando). Anthropic queda disponible pero inactivo por defecto (ver [ROADMAP.md](ROADMAP.md) e issue #17).
+Por defecto usa proveedores **gratuitos** (Google AI Studio/Gemini y Groq, ambos confirmados funcionando en producción real; NVIDIA NIM y OpenCode Zen también disponibles) para esta fase temprana del proyecto, más OpenAI activo como respaldo (de pago, pero ya verificado funcionando). Cerebras y Anthropic quedan disponibles en el código pero inactivos por defecto (ver [ROADMAP.md](ROADMAP.md) e issue #17 para Anthropic; Cerebras tiene el billing de su cuenta gratuita bloqueado, confirmado con un `402` real).
 
 ## Arquitectura MVP
 
 ```text
 Usuario -> Next.js -> FastAPI -> Orchestrator
-                                  |-> Cerebras (gratis)
-                                  |-> Gemini (gratis)
-                                  |-> Groq (gratis)
-                                  |-> NVIDIA NIM (gratis)
-                                  |-> OpenCode Zen (gratis/promocional)
+                                  |-> Gemini (gratis, confirmado)
+                                  |-> Groq (gratis, confirmado)
+                                  |-> NVIDIA NIM (gratis, sin modelo confirmado aun)
+                                  |-> OpenCode Zen (bloqueado: su tier gratis rechaza terceros)
                                   |-> OpenAI (de pago, respaldo)
                                   `-> Synthesizer -> respuesta final
                                            |
@@ -24,8 +23,8 @@ El MVP no implementa todavía router inteligente, crítica cruzada ni verificaci
 ## Requisitos
 
 - Docker y Docker Compose
-- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)), Cerebras ([cloud.cerebras.ai](https://cloud.cerebras.ai)), NVIDIA NIM ([build.nvidia.com](https://build.nvidia.com)), OpenCode Zen ([opencode.ai](https://opencode.ai)) y/o Google AI Studio (Gemini). Ninguno debería requerir tarjeta de crédito, pero confírmalo en tu propio registro. OpenCode Zen en particular ofrece modelos gratis **por tiempo limitado** (promocional, ej. `big-pickle`), no un tier gratuito permanente garantizado — y su tier gratis solo acepta llamadas desde el propio cliente de OpenCode, no desde integraciones de terceros como esta (confirmado con un 403 real).
-- OpenAI (de pago) y Anthropic (de pago) siguen soportados — agrega su API key en `.env` para reactivarlos.
+- API keys de uno o más proveedores gratuitos: Groq ([console.groq.com](https://console.groq.com)) y/o Google AI Studio (Gemini) — ambos confirmados funcionando end-to-end. NVIDIA NIM ([build.nvidia.com](https://build.nvidia.com)) y OpenCode Zen ([opencode.ai](https://opencode.ai)) también están integrados pero con limitaciones reales encontradas en esta sesión (ver `docs/ARQUITECTURA.md`): a NVIDIA aún no se le encuentra un ID de modelo vigente, y OpenCode Zen bloquea su tier gratis para integraciones de terceros (`403 FreeTierError`).
+- OpenAI (de pago) y Anthropic/Cerebras (de pago o con billing bloqueado) siguen soportados en el código — agrega su API key en `.env` y agrégalos a `PROVIDER_PRIORITY` para reactivarlos.
 
 ## Quickstart
 

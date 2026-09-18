@@ -8,8 +8,11 @@ from app.providers.registry import build_providers
 
 def test_default_settings_prefer_free_providers():
     settings = Settings(_env_file=None)
-    assert settings.synthesizer_provider == "cerebras"
-    assert settings.provider_priority_list == ["cerebras", "gemini", "groq", "nvidia", "opencode", "openai"]
+    assert settings.synthesizer_provider == "gemini"
+    # cerebras excluido del default: su cuenta gratuita quedo con el billing
+    # bloqueado (402 Payment required, confirmado real en produccion) --
+    # el provider sigue existiendo en el codigo, solo no esta priorizado.
+    assert settings.provider_priority_list == ["gemini", "groq", "nvidia", "opencode", "openai"]
     assert settings.gemini_model == "gemini-3.1-flash-lite"
     # llama-3.3-70b-versatile paso a ser Enterprise-only en Groq (17 jun 2026,
     # confirmado con un 404 model_not_found real) -- el default actual es el

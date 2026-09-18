@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # default en produccion.
     opencode_model: str = "big-pickle"
 
-    synthesizer_provider: str = "cerebras"
+    synthesizer_provider: str = "gemini"
     enable_cross_critique: bool = True
     enable_reevaluation_round: bool = True
     enable_code_verification: bool = True
@@ -82,16 +82,18 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://multillm:multillm@postgres:5432/multillm"
 
     # Orden preferido para el router al elegir un subconjunto de providers.
-    # cerebras/gemini/groq/nvidia/opencode son gratuitos por defecto; openai
-    # queda al final como respaldo (solo se usa si el router necesita mas
-    # providers de los que hay gratis disponibles, o si a alguno le falta la
-    # api key). anthropic no esta en la lista por defecto (issue #17: se
-    # quedo sin credito) pero sigue disponible si se le agrega una api key y
-    # se reintroduce aqui. El router solo usa hasta 3 providers por request
-    # (TaskRouter, principio de gestion de costos), asi que con 5 gratuitos
-    # en la lista los ultimos 2 solo se prueban si alguno de los primeros no
-    # tiene api key configurada.
-    provider_priority: str = "cerebras,gemini,groq,nvidia,opencode,openai"
+    # gemini/groq son los proveedores gratuitos confirmados funcionando en
+    # produccion real; nvidia/opencode quedan disponibles pero sin modelo
+    # confirmado (nvidia) o bloqueados por su propio tier gratis (opencode:
+    # 403 FreeTierError, solo acepta llamadas desde su propio cliente) --
+    # ver docs/ARQUITECTURA.md. openai queda al final como respaldo de pago.
+    # cerebras NO esta en la lista por defecto: su cuenta gratuita quedo con
+    # el billing bloqueado (402 Payment required, confirmado real) -- igual
+    # que anthropic (issue #17), el codigo del provider se mantiene intacto
+    # y vuelve a activarse solo con agregarlo de nuevo a esta lista. anthropic
+    # tampoco esta en la lista por defecto. El router solo usa hasta 3
+    # providers por request (TaskRouter, principio de gestion de costos).
+    provider_priority: str = "gemini,groq,nvidia,opencode,openai"
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -34,14 +34,15 @@
                 +-------------+-------------+-------------+-------------+
                 |             |             |             |             |
                 v             v             v             v             v
-          +----------+  +----------+  +----------+  +----------+  +----------+
-          | Cerebras |  |  Gemini  |  |   Groq   |  |  NVIDIA  |  | OpenCode |
-          +-----+----+  +----+-----+  +----+-----+  +----+-----+  +----+-----+
-                |             |             |             |             |
-                +-------------+-------------+-------------+-------------+
+          +----------+  +----------+  +----------+  +----------+
+          |  Gemini  |  |   Groq   |  |  NVIDIA  |  | OpenCode |
+          +----+-----+  +----+-----+  +----+-----+  +----+-----+
+                |             |             |             |
+                +-------------+-------------+-------------+
                 (solo se usan hasta 3 por request, segun provider_priority;
                  OpenAI disponible como respaldo de pago;
-                 Anthropic disponible pero inactivo por defecto)
+                 Cerebras y Anthropic disponibles en el codigo pero
+                 inactivos por defecto -- billing bloqueado / sin credito)
                               |
                               v
                        +------------+
@@ -109,11 +110,13 @@
 El orquestador depende exclusivamente de `LLMProvider`. Cada adaptador traduce el contrato común al SDK oficial de su proveedor. `GroqProvider`, `CerebrasProvider`, `NvidiaProvider` y `OpenCodeProvider` comparten una única implementación (`OpenAICompatibleProvider`, en `backend/app/providers/openai_compatible_provider.py`) porque los cuatro exponen un endpoint `/chat/completions` compatible con la API de OpenAI — solo difieren en `base_url` y `provider_name`. Esto evita que el router o el sintetizador tengan lógica específica de ningún proveedor concreto.
 
 **Hallazgos reales de verificación en producción (CI con API keys reales, issue #18):** los catálogos de modelos de estos proveedores gratuitos cambian con frecuencia y sin aviso previo en el código.
-- **Groq:** el default original `llama-3.3-70b-versatile` pasó a ser Enterprise-only el 17 de junio de 2026 (confirmado con un `404 model_not_found` real) — se migró a `openai/gpt-oss-120b`, que Groq recomienda como reemplazo, y esa key sí quedó confirmada funcionando end-to-end.
-- **NVIDIA:** tanto el default original `meta/llama-3.1-70b-instruct` como su reemplazo sugerido `meta/llama-3.3-70b-instruct` llegaron a su fin de vida el 26 de agosto de 2026 (ambos con un `410 Gone` real, con la misma fecha exacta); un tercer intento con un modelo de generación más nueva (`meta/llama-4-scout-17b-16e-instruct`) devolvió `404 Not Found`. **NVIDIA sigue sin un modelo confirmado funcionando** — pendiente de verificar directamente en build.nvidia.com antes de depender de este proveedor.
-- **OpenCode Zen:** la API key es válida y llega al servicio real, pero el modelo gratis `big-pickle` devuelve `403 FreeTierError` con el mensaje `"OpenCode's free tier can only be used from within OpenCode"` — es una restricción de la plataforma, no un ID de modelo incorrecto: el tier gratis está limitado a llamadas desde su propio cliente/CLI, no desde integraciones de terceros como esta. **No es viable con una key de tier gratis.**
+- **Gemini:** ✅ confirmado funcionando end-to-end, con contenido real generado en múltiples runs de CI.
+- **Groq:** ✅ confirmado funcionando end-to-end. El default original `llama-3.3-70b-versatile` pasó a ser Enterprise-only el 17 de junio de 2026 (confirmado con un `404 model_not_found` real) — se migró a `openai/gpt-oss-120b`, que Groq recomienda como reemplazo.
+- **Cerebras:** ❌ la cuenta gratuita del usuario tiene el billing bloqueado — `402 Payment required to access this resource. Visit your billing tab.`, confirmado en múltiples runs reales. Por eso se excluyó de `PROVIDER_PRIORITY` por defecto (ver arriba); el `CerebrasProvider` sigue intacto en el código.
+- **NVIDIA:** ❌ tanto el default original `meta/llama-3.1-70b-instruct` como su reemplazo sugerido `meta/llama-3.3-70b-instruct` llegaron a su fin de vida el 26 de agosto de 2026 (ambos con un `410 Gone` real, con la misma fecha exacta); un tercer intento con un modelo de generación más nueva (`meta/llama-4-scout-17b-16e-instruct`) devolvió `404 Not Found`. **NVIDIA sigue sin un modelo confirmado funcionando** — pendiente de verificar directamente en build.nvidia.com antes de depender de este proveedor.
+- **OpenCode Zen:** ❌ la API key es válida y llega al servicio real, pero el modelo gratis `big-pickle` devuelve `403 FreeTierError` con el mensaje `"OpenCode's free tier can only be used from within OpenCode"` — es una restricción de la plataforma, no un ID de modelo incorrecto: el tier gratis está limitado a llamadas desde su propio cliente/CLI, no desde integraciones de terceros como esta. **No es viable con una key de tier gratis.**
 
-Estos hallazgos se documentan aquí explícitamente porque son evidencia real, no simulada, de que "modelo por defecto verificado hoy" no implica "seguirá funcionando mañana" en proveedores gratuitos de catálogos volátiles.
+Estos hallazgos se documentan aquí explícitamente porque son evidencia real, no simulada, de que "modelo por defecto verificado hoy" no implica "seguirá funcionando mañana" en proveedores gratuitos de catálogos volátiles — y de que "gratis" a veces viene con restricciones de uso, no solo de cuota.
 
 ## Degradación elegante
 
@@ -121,7 +124,7 @@ Cada llamada captura errores del SDK y produce un `LLMResponse` con `error`. `as
 
 ## Router inteligente (v2)
 
-`TaskRouter.classify()` clasifica el prompt en `low`/`medium`/`high` usando heurísticas simples (palabras clave y longitud, ver `backend/app/core/router.py`) y decide cuántos providers usar (1/2/3). `select_providers()` elige el subconjunto según `settings.provider_priority` (por defecto `cerebras,gemini,groq,nvidia,opencode,openai`: los 5 proveedores gratuitos primero, OpenAI de pago como respaldo solo si el router necesita más providers de los que hay gratis disponibles o si a alguno le falta su API key). Como el router nunca selecciona más de 3 providers por request, con 5 opciones gratuitas en la lista los últimos 2 (`nvidia`, `opencode` en el orden por defecto) solo se prueban si alguno anterior en la prioridad no tiene su API key configurada. El orquestador llama al router en cada `run()`, así que el mismo `DeliberationOrchestrator` sirve tanto para un prompt trivial (1 provider) como para uno complejo (3 providers + síntesis), sin que el endpoint tenga que decidir nada. La decisión de enrutamiento (`complexity`, `routing_reason`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia.
+`TaskRouter.classify()` clasifica el prompt en `low`/`medium`/`high` usando heurísticas simples (palabras clave y longitud, ver `backend/app/core/router.py`) y decide cuántos providers usar (1/2/3). `select_providers()` elige el subconjunto según `settings.provider_priority` (por defecto `gemini,groq,nvidia,opencode,openai`: los 4 proveedores gratuitos primero, OpenAI de pago como respaldo solo si el router necesita más providers de los que hay gratis disponibles o si a alguno le falta su API key). Como el router nunca selecciona más de 3 providers por request, con 4 opciones gratuitas en la lista las últimas 2 (`nvidia`, `opencode` en el orden por defecto) solo se prueban si algún anterior en la prioridad no tiene su API key configurada. `cerebras` y `anthropic` no están en la lista por defecto (ver la nota de hallazgos reales más abajo y el issue #17), pero sus clases de provider siguen intactas en el código — reactivarlos es tan simple como agregarles su API key y reintroducirlos en `PROVIDER_PRIORITY`. El orquestador llama al router en cada `run()`, así que el mismo `DeliberationOrchestrator` sirve tanto para un prompt trivial (1 provider) como para uno complejo (3 providers + síntesis), sin que el endpoint tenga que decidir nada. La decisión de enrutamiento (`complexity`, `routing_reason`) se expone en `ChatResponse` y se persiste en `request_logs` por transparencia.
 
 Esto es deliberadamente una heurística, no un clasificador con IA: mantiene el costo de clasificar cerca de cero y es suficiente para el objetivo del documento de diseño (no gastar 3 modelos en una pregunta simple). Un clasificador más sofisticado (o basado en LLM) puede reemplazar `TaskRouter.classify()` sin tocar el orquestador ni los providers.
 
