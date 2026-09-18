@@ -96,14 +96,9 @@
 }
 
 .conversationItem {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 14px 12px;
+  position: relative;
   border-radius: var(--radius-sm);
   margin-bottom: 4px;
-  background: transparent;
-  border: none;
   transition: background 150ms ease;
 }
 
@@ -113,6 +108,42 @@
 
 .conversationItemActive {
   background: var(--surface-strong);
+}
+
+.conversationSelect {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px 32px 14px 12px;
+  background: transparent;
+  border: none;
+}
+
+.deleteButton {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.conversationItem:hover .deleteButton {
+  opacity: 1;
+}
+
+.deleteButton:hover {
+  background: var(--terracotta-bg);
+  color: var(--terracotta);
 }
 
 .conversationTitle {

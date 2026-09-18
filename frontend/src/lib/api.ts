@@ -1,4 +1,5 @@
 import type { ChatResponse, ConversationMode } from '@/types/chat';
+import type { ConversationListResponse, MessageListResponse } from '@/types/conversation';
 import type { DashboardStats } from '@/types/dashboard';
 import type { EvaluateResponse } from '@/types/evaluate';
 
@@ -16,6 +17,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
     throw new Error(message);
   }
 
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -30,6 +32,11 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_URL}${path}`);
+  return handleResponse<T>(response);
+}
+
+async function deleteJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { method: 'DELETE' });
   return handleResponse<T>(response);
 }
 
@@ -50,4 +57,16 @@ export async function sendEvaluate(prompt: string): Promise<EvaluateResponse> {
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   return getJson<DashboardStats>('/api/dashboard/stats');
+}
+
+export async function listConversations(): Promise<ConversationListResponse> {
+  return getJson<ConversationListResponse>('/api/conversations');
+}
+
+export async function getConversationMessages(id: number): Promise<MessageListResponse> {
+  return getJson<MessageListResponse>(`/api/conversations/${id}/messages`);
+}
+
+export async function deleteConversation(id: number): Promise<void> {
+  return deleteJson<void>(`/api/conversations/${id}`);
 }

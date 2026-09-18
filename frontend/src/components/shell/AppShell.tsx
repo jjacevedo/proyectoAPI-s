@@ -11,9 +11,18 @@ type Props = {
   onModeChange?: (mode: SidebarMode) => void;
   activeConversationId?: number | null;
   onSelectConversation?: (id: number) => void;
+  onDeleteConversation?: (id: number) => void;
 };
 
-export function AppShell({ activeView, children, mode, onModeChange, activeConversationId, onSelectConversation }: Props) {
+export function AppShell({
+  activeView,
+  children,
+  mode,
+  onModeChange,
+  activeConversationId,
+  onSelectConversation,
+  onDeleteConversation,
+}: Props) {
   return (
     <div className={styles.shell}>
       <div className={styles.center}>
@@ -27,6 +36,7 @@ export function AppShell({ activeView, children, mode, onModeChange, activeConve
         onModeChange={onModeChange}
         activeConversationId={activeConversationId}
         onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
       />
     </div>
   );

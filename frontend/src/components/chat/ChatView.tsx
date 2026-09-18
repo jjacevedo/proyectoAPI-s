@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { sendChat } from '@/lib/api';
-import { deriveTitle, upsertConversation } from '@/lib/conversationStore';
+import { getConversationMessages, sendChat } from '@/lib/api';
+import { deriveTitle } from '@/lib/format';
 import type { ChatResponse, ConversationMode } from '@/types/chat';
 import { MessageBubble } from './MessageBubble';
 import { PromptBar } from './PromptBar';
@@ -24,9 +24,11 @@ type Props = {
 export function ChatView({ onConversationIdChange, resumeConversationId }: Props) {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ConversationMode>('deliberation');
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const messagesRef = useRef<HTMLDivElement>(null);
   const lastResumeId = useRef<number | null | undefined>(undefined);
@@ -36,8 +38,21 @@ export function ChatView({ onConversationIdChange, resumeConversationId }: Props
     if (resumeConversationId === lastResumeId.current) return;
     lastResumeId.current = resumeConversationId;
     setConversationId(resumeConversationId);
-    setTurns([]);
     setError(null);
+    setTurns([]);
+    setRestored(false);
+    setRestoring(true);
+    getConversationMessages(resumeConversationId)
+      .then((res) => {
+        // Los turnos restaurados solo traen texto (role+content): request_logs no
+        // guarda conversation_id, asi que no hay forma de recuperar las respuestas
+        // por proveedor/criticas/verificacion de turnos pasados -- no se fabrica un
+        // ChatResponse falso, MessageBubble ya maneja `response` ausente sin acordeones.
+        setTurns(res.messages.map((m) => ({ role: m.role, content: m.content })));
+        setRestored(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar la conversación'))
+      .finally(() => setRestoring(false));
   }, [resumeConversationId]);
 
   useEffect(() => {
@@ -57,10 +72,8 @@ export function ChatView({ onConversationIdChange, resumeConversationId }: Props
         { role: 'assistant', content: result.final_answer, response: result },
       ]);
       setConversationId(result.conversation_id);
+      setRestored(false);
       onConversationIdChange?.(result.conversation_id);
-      if (result.conversation_id != null) {
-        upsertConversation(result.conversation_id, deriveTitle(promptSnapshot), new Date().toISOString());
-      }
       setPrompt('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -73,7 +86,9 @@ export function ChatView({ onConversationIdChange, resumeConversationId }: Props
   const title = turns.length > 0 ? deriveTitle(turns[0].content, 60) : 'Nueva conversación';
   const subtitle = latestResponse
     ? `${MODE_LABELS[mode]} · ${latestResponse.models_used.length} modelos · ${latestResponse.total_tokens} tokens`
-    : 'Escribe tu primera tarea para empezar';
+    : restored
+      ? `Conversación restaurada · ${turns.length} mensajes`
+      : 'Escribe tu primera tarea para empezar';
 
   return (
     <>
@@ -86,6 +101,7 @@ export function ChatView({ onConversationIdChange, resumeConversationId }: Props
       </div>
 
       <div className={styles.messages} ref={messagesRef}>
+        {restoring && <div className={styles.subtitle}>Cargando conversación...</div>}
         {turns.map((turn, index) => (
           <MessageBubble key={index} role={turn.role} content={turn.content} response={turn.response} />
         ))}

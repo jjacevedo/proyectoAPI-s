@@ -38,6 +38,13 @@ export default function Home() {
     setResumeConversationId(id);
   }
 
+  function handleDeleteConversation(id: number) {
+    if (activeConversationId === id) {
+      setActiveConversationId(null);
+      setResumeConversationId(null);
+    }
+  }
+
   return (
     <AppShell
       activeView="chat"
@@ -45,6 +52,7 @@ export default function Home() {
       onModeChange={setSidebarMode}
       activeConversationId={activeConversationId}
       onSelectConversation={handleSelectConversation}
+      onDeleteConversation={handleDeleteConversation}
     >
       {sidebarMode === 'normal' ? (
         <ChatView onConversationIdChange={setActiveConversationId} resumeConversationId={resumeConversationId} />
